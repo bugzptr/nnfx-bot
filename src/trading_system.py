@@ -1397,21 +1397,20 @@ def run_comprehensive_analysis(api_config: Dict = None, test_pairs: List[str] = 
 
 # Example usage and utility functions
 if __name__ == "__main__":
+    # Ensure logs directory exists
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
     # Set up logging with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = f"logs/system_run_{timestamp}.log"
-    
     # Add file handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
-    
     logger.addHandler(file_handler)
-    
     logger.info("NNFX Bot Trading System Started")
     logger.info(f"Log file: {log_file}")
-    
     # Load API config from JSON file
     api_config_path = "config/api_config.json"
     if not os.path.exists(api_config_path):
