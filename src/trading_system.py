@@ -113,6 +113,10 @@ class BitgetAPI:
                     try:
                         cached_df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
                         logger.debug(f"Using cached data for {symbol}")
+                        # Defensive checks on cached data
+                        if cached_df.empty or cached_df.isnull().values.any() or np.isinf(cached_df.values).any():
+                            logger.warning(f"Cached data for {symbol} is empty or contains NaN/inf values.")
+                            return pd.DataFrame()
                         return cached_df
                     except Exception as e:
                         logger.warning(f"Failed to read cache for {symbol}: {e}")
@@ -133,6 +137,7 @@ class BitgetAPI:
             for attempt in range(max_retries):
                 try:
                     response = self.session.get(url, params=params, timeout=15)
+                    logger.debug(f"Raw API response for {symbol}: {response.text}")
                     response.raise_for_status()
                     data = response.json()
                     
@@ -146,10 +151,15 @@ class BitgetAPI:
                         df = df.set_index('timestamp')
                         df = df.astype(float)
                         df = df.sort_index()
+                        logger.debug(f"Parsed DataFrame for {symbol}:\n{df.head()}")
                         
-                        # Validate data
-                        if len(df) == 0:
-                            raise ValueError("Empty dataset received")
+                        # Defensive checks
+                        if df.empty:
+                            logger.warning(f"No data returned for {symbol}")
+                            return pd.DataFrame()
+                        if df.isnull().values.any() or np.isinf(df.values).any():
+                            logger.warning(f"Data for {symbol} contains NaN or inf values.")
+                            return pd.DataFrame()
                         
                         # Cache the data
                         try:
@@ -663,10 +673,13 @@ class DualNNFXSystem:
         try:
             # Fetch data
             df = self.api.get_klines(symbol, "4H", 1000)
+            # Defensive checks on fetched data
             if df.empty:
                 logger.warning(f"No data available for {symbol}")
                 return {"symbol": symbol, "error": "No data available"}
-            
+            if df.isnull().values.any() or np.isinf(df.values).any():
+                logger.warning(f"Data for {symbol} contains NaN or inf values.")
+                return {"symbol": symbol, "error": "Invalid data (NaN or inf)"}
             # Validate data quality
             if len(df) < 100:
                 logger.warning(f"Insufficient data for {symbol}: {len(df)} candles")
