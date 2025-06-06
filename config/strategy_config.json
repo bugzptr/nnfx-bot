@@ -25,7 +25,7 @@
         "klinger_fast_ema": 12,
         "klinger_slow_ema":26,
         "klinger_signal_ema": 9,
-        "cmf_window": 20,          // New parameter for CMF
+        "cmf_window": 20,         
         "psar_step": 0.02,
         "psar_max_step": 0.2,
         "atr_period_risk": 14,

@@ -49,8 +49,7 @@ default_config_for_fallback = {
         "chandelier_period": 22, "chandelier_multiplier": 3.0,
         "kijun_sen_period": 26, 
         "williams_r_period": 14, "williams_r_threshold": -50,
-        "cmf_window": 20, # For Chaikin Money Flow
-        # Klinger keys no longer directly used for PVO/Klinger if CMF is used
+        "cmf_window": 20, 
         "klinger_fast_ema": 12, 
         "klinger_slow_ema": 26, 
         "klinger_signal_ema": 9,  
@@ -74,29 +73,53 @@ default_config_for_fallback = {
 }
 
 # --- Configuration Loader ---
-class StrategyConfig: # No changes here
+class StrategyConfig: 
     def __init__(self, config_path_str="config/strategy_config.json"):
         self.config_path = Path(config_path_str)
         self.params = self._load_config()
-        logger.info(f"Strategy configuration loaded from: {self.config_path if self.config_path.exists() else 'Fallback Defaults'}")
+        # Avoid logging here if instance is created in worker, as logger might not be configured for worker yet
+        # logger.info(f"Strategy configuration loaded from: {self.config_path if self.config_path.exists() else 'Fallback Defaults'}")
 
     def _load_config(self) -> Dict[str, Any]:
         if not self.config_path.exists():
-            logger.warning(f"Strategy config file not found: {self.config_path}. Using hardcoded fallback defaults.")
+            # This log will appear if StrategyConfig is instantiated in main process before file logging is fully set up by main.
+            # print(f"WARNING: Strategy config file not found: {self.config_path}. Using hardcoded fallback defaults.", file=sys.stderr)
+            # Check if logger has handlers, else use print
+            current_logger = logging.getLogger(__name__) # Use current module's logger
+            if current_logger.hasHandlers():
+                 current_logger.warning(f"Strategy config file not found: {self.config_path}. Using hardcoded fallback defaults.")
+            else: # Fallback to print if logger not yet configured (e.g. in worker before main logger setup)
+                print(f"PRINT WARNING: Strategy config file not found: {self.config_path}. Using fallback defaults.", file=sys.stderr)
+
             try:
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.config_path, "w") as f_cfg:
                     json.dump(default_config_for_fallback, f_cfg, indent=4)
-                logger.info(f"Created dummy strategy config at {self.config_path}. Please review and customize.")
-            except Exception as e_create_cfg: logger.error(f"Could not create dummy strategy config: {e_create_cfg}")
+                if current_logger.hasHandlers():
+                    current_logger.info(f"Created dummy strategy config at {self.config_path}. Please review and customize.")
+                else:
+                    print(f"PRINT INFO: Created dummy strategy config at {self.config_path}. Please review.", file=sys.stderr)
+            except Exception as e_create_cfg: 
+                if current_logger.hasHandlers():
+                    current_logger.error(f"Could not create dummy strategy config: {e_create_cfg}")
+                else:
+                    print(f"PRINT ERROR: Could not create dummy strategy config: {e_create_cfg}", file=sys.stderr)
             return default_config_for_fallback.copy() 
         try:
             with open(self.config_path, "r") as f: return json.load(f)
         except json.JSONDecodeError as e:
-            logger.error(f"Error decoding JSON from {self.config_path}: {e}. Using fallback defaults.")
+            current_logger = logging.getLogger(__name__)
+            if current_logger.hasHandlers():
+                current_logger.error(f"Error decoding JSON from {self.config_path}: {e}. Using fallback defaults.")
+            else:
+                print(f"PRINT ERROR: Error decoding JSON from {self.config_path}: {e}. Using fallback.", file=sys.stderr)
             return default_config_for_fallback.copy()
         except Exception as e:
-            logger.error(f"Error loading strategy config {self.config_path}: {e}. Using fallback defaults.")
+            current_logger = logging.getLogger(__name__)
+            if current_logger.hasHandlers():
+                current_logger.error(f"Error loading strategy config {self.config_path}: {e}. Using fallback defaults.")
+            else:
+                print(f"PRINT ERROR: Error loading strategy config {self.config_path}: {e}. Using fallback.", file=sys.stderr)
             return default_config_for_fallback.copy()
 
     def get(self, key_path: str, default_val_override: Any = None) -> Any:
@@ -113,9 +136,9 @@ class StrategyConfig: # No changes here
             except (KeyError, TypeError):
                 return default_val_override
 
-strategy_config_global = StrategyConfig()
+strategy_config_global = StrategyConfig() # Initialized once when module loads
 
-class BitgetAPI: # No changes here
+class BitgetAPI: 
     def __init__(self, api_key: str = "", secret_key: str = "", passphrase: str = "", sandbox: bool = True):
         self.api_key = api_key
         self.secret_key = secret_key
@@ -124,9 +147,12 @@ class BitgetAPI: # No changes here
         self.session = requests.Session()
         self.rate_limit_delay = 0.25 
 
+        # This directory creation should ideally happen once, not per instance.
+        # Moved to __main__ or a global setup block if script structure allows.
+        # For now, keeping it here for simplicity if class is instantiated in workers.
         for directory in ["data", "results", "logs", "config"]:
             Path(directory).mkdir(parents=True, exist_ok=True)
-        logger.info(f"Bitget API initialized (API Key present: {bool(api_key)})")
+        # logger.info(f"Bitget API initialized (API Key present: {bool(api_key)})") # Logged by main process
 
     def _generate_signature(self, timestamp: str, method: str, request_path: str, query_string: str = "", body_string: str = "") -> str:
         if not self.secret_key: return ""
@@ -150,11 +176,14 @@ class BitgetAPI: # No changes here
         return {k: v for k, v in headers.items() if v} 
 
     def get_klines(self, symbol: str, granularity: str = "4H", limit: int = 500) -> pd.DataFrame:
+        # Use the global config instance for kline freshness settings
+        current_config = strategy_config_global 
+        
         api_symbol_for_request = symbol if symbol.endswith('_SPBL') else symbol + '_SPBL'
         safe_symbol_fname = api_symbol_for_request.replace('/', '_') 
         cache_file = Path(f"data/{safe_symbol_fname}_{granularity.lower()}_klines.csv")
         expected_cols = ['open', 'high', 'low', 'close', 'volume']
-        cache_freshness_h = strategy_config_global.get("cleanup.cache_klines_freshness_hours", 4)
+        cache_freshness_h = current_config.get("cleanup.cache_klines_freshness_hours", 4)
 
         if cache_file.exists():
             if (time.time() - cache_file.stat().st_mtime) < cache_freshness_h * 3600:
@@ -261,29 +290,15 @@ class NNFXIndicators:
         try: return ta.volume.ForceIndexIndicator(close,volume,p,fillna=False).force_index()
         except Exception as e: logger.error(f"ElderFI err(p={p}): {e}"); return pd.Series(np.nan,index=close.index)
 
-    # Method name 'klinger_oscillator' is kept for compatibility, calculates Chaikin Money Flow (CMF)
     def klinger_oscillator(self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> Tuple[pd.Series, pd.Series]:
-        cmf_window = self._get_param("cmf_window", 20) # New config key for CMF window
-
+        cmf_window = self._get_param("cmf_window", 20)
         logger.debug(f"Calculating Chaikin Money Flow (CMF) with window: {cmf_window} (as System B Volume Indicator)")
-
         try:
             cmf_indicator = ta.volume.ChaikinMoneyFlowIndicator(
-                high=high,
-                low=low,
-                close=close,
-                volume=volume,
-                window=cmf_window,
-                fillna=False
-            )
+                high=high,low=low,close=close,volume=volume,window=cmf_window,fillna=False)
             cmf_line = cmf_indicator.chaikin_money_flow()
-            
-            # CMF is a single line. To fit the tuple (oscillator, signal) structure,
-            # we return NaNs for the "signal line" part. The signal logic needs to be adapted.
             nan_signal_line = pd.Series(np.nan, index=volume.index, dtype=float)
-            
             return cmf_line, nan_signal_line
-            
         except Exception as e:
             logger.error(f"Error calculating Chaikin Money Flow (window={cmf_window}): {e}")
             empty_series = pd.Series(np.nan, index=volume.index, dtype=float)
@@ -361,9 +376,6 @@ class DualNNFXSystem:
         
         data['kijun_sen'] = self._safe_calc_ind(idx, f"[{symbol}] KijunSen", ind.kijun_sen, data['high'], data['low'])
         data['williams_r'] = self._safe_calc_ind(idx, f"[{symbol}] W%R", ind.williams_r, data['high'], data['low'], data['close'])
-        # This now calls the method that calculates CMF (or PVO if that was the choice)
-        # The column names 'klinger' and 'klinger_signal' are retained for now.
-        # 'klinger' will hold CMF line, 'klinger_signal' will hold NaNs.
         cmf_line, dummy_signal_line = self._safe_calc_ind(idx, f"[{symbol}] CMF (as Klinger)", ind.klinger_oscillator, data['high'], data['low'], data['close'], data['volume'])
         data['klinger'] = cmf_line        
         data['klinger_signal'] = dummy_signal_line 
@@ -385,9 +397,9 @@ class DualNNFXSystem:
         wpr_thresh = self.config.get("indicators.williams_r_threshold", -50) 
         df['system_b_confirmation'] = np.select([df['williams_r'] > wpr_thresh, df['williams_r'] < wpr_thresh], [1, -1], default=0)
         
-        # System B Volume: Now using CMF (stored in 'klinger' column)
+        # System B Volume: Using CMF (stored in 'klinger' column)
         # CMF > 0 implies buying pressure, CMF < 0 implies selling pressure.
-        # 'klinger_signal' column will be all NaNs if CMF is used this way.
+        # 'klinger_signal' column is all NaNs.
         df['system_b_volume'] = np.select(
             [df['klinger'] > 0, df['klinger'] < 0], # Condition for CMF
             [1, -1], 
@@ -402,17 +414,42 @@ class DualNNFXSystem:
         df['short_exit'] = ((df['close'] > df['chandelier_short']) | (df['close'] > df['psar'])).astype(bool)
         return df
 
-    def backtest_pair(self, symbol: str) -> Dict: # No structural changes here
-        logger.debug(f"[{symbol}] Backtest process started for symbol.") 
+    def backtest_pair(self, symbol: str) -> Dict: 
+        logger.info(f"[{symbol}] Backtesting symbol...") # Changed log level to INFO for worker start
+
         cfg = self.config 
+        
         df_klines = self.api.get_klines(symbol, "4H", limit=cfg.get("backtest_kline_limit", 1000))
         if df_klines.empty: return {"symbol": symbol, "error": "No kline data"}
         if len(df_klines) < cfg.get("backtest_min_data_after_get_klines", 100):
             return {"symbol": symbol, "error": f"Insufficient klines: {len(df_klines)}"}
 
         df_indicators = self.calculate_indicators(df_klines, symbol)
-        df_indicators.dropna(inplace=True) 
+        
+        # --- DEBUGGING BLOCK FOR NANS ---
+        # logger.info(f"[{symbol}] DEBUG: DataFrame after calculate_indicators (BEFORE dropna would be applied):")
+        # logger.info(f"Shape: {df_indicators.shape}")
+        # nan_counts = df_indicators.isnull().sum()
+        # logger.info(f"NaN counts per column:\n{nan_counts[nan_counts > 0]}") 
+        # if df_indicators.shape[0] > 0 : 
+        #     with pd.option_context('display.max_rows', 10, 'display.max_columns', None, 'display.width', 1000): # For better printing
+        #         logger.info(f"First 5 rows with indicators:\n{df_indicators.head()}")
+        #         logger.info(f"Last 5 rows with indicators:\n{df_indicators.tail()}")
+        # --- END DEBUGGING BLOCK ---
+
+        df_indicators.dropna(inplace=True) # Keep dropna, critical for backtest loop
+        
         if len(df_indicators) < cfg.get("backtest_min_data_after_indicators", 50):
+            logger.warning(f"[{symbol}] Insufficient data after indicators/dropna: {len(df_indicators)} rows. Min needed: {cfg.get('backtest_min_data_after_indicators', 50)}")
+            # Log NaN counts again if it becomes empty AFTER dropna
+            if len(df_indicators) == 0:
+                nan_counts_original = df_klines.isnull().sum() # NaNs in original klines
+                # Re-calculate indicators on a copy to log intermediate NaNs without affecting main df_indicators
+                temp_df_for_nan_debug = self.calculate_indicators(df_klines.copy(), symbol + "_nan_debug")
+                nan_counts_after_calc = temp_df_for_nan_debug.isnull().sum()
+                logger.warning(f"[{symbol}] All rows dropped by dropna. NaN counts in original klines: {nan_counts_original[nan_counts_original > 0]}")
+                logger.warning(f"[{symbol}] NaN counts after indicator calculation (before dropna): \n{nan_counts_after_calc[nan_counts_after_calc > 0]}")
+
             return {"symbol": symbol, "error": f"Insufficient data after indicators/dropna: {len(df_indicators)}"}
 
         df_signals = self.generate_signals(df_indicators)
@@ -821,6 +858,8 @@ if __name__ == "__main__":
                 h_console_main.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')) 
         
         logger.info(f"NNFX System Run ID: {ts_run}")
+        # Initialize global config instance here if not already done, or ensure it's initialized before use by BitgetAPI in worker
+        # strategy_config_global = StrategyConfig() # Already done globally
         logger.info(f"Strategy Config: {strategy_config_global.config_path}")
         logger.info(f"File Log (INFO+): {path_log_file_main}")
         logger.info(f"Console Log (INFO+) active.")
@@ -840,12 +879,15 @@ if __name__ == "__main__":
                 logger.info(f"Dummy API cfg created: {path_api_cfg_main}. Please update.")
             except Exception as e_dum_api_main: logger.error(f"Dummy API cfg creation err: {e_dum_api_main}")
         
-        symbols_for_run_main = None 
-        # symbols_for_run_main = ['BTCUSDT', 'ETHUSDT'] 
+        # --- DEBUGGING SINGLE PAIR ---
+        symbols_for_run_main = ['BTCUSDT'] # Test with one symbol
+        num_proc_workers_main = 1 # Force single worker for easier log reading during this debug phase
+        # --- END DEBUGGING SINGLE PAIR ---
         
-        cpus_main = os.cpu_count()
-        num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
-        # num_proc_workers_main = 1 # Override for testing 
+        # symbols_for_run_main = None # Uncomment for dynamic selection
+        # cpus_main = os.cpu_count()
+        # num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
+        
         logger.info(f"Using up to {num_proc_workers_main} worker processes for scan.")
 
         output_analysis_main = run_comprehensive_analysis(
