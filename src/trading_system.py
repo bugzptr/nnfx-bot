@@ -103,8 +103,10 @@ class BitgetAPI:
         try:
             # Convert granularity to lowercase for API
             period = granularity.lower()
+            # Ensure symbol ends with _SPBL for Bitget spot API
+            api_symbol = symbol if symbol.endswith('_SPBL') else symbol + '_SPBL'
             # Check cache first
-            cache_file = f"data/{symbol}_{period}.csv"
+            cache_file = f"data/{api_symbol}_{period}.csv"
             if os.path.exists(cache_file):
                 cache_age = time.time() - os.path.getmtime(cache_file)
                 if cache_age < 14400:  # 4 hours
@@ -121,7 +123,7 @@ class BitgetAPI:
             # API request
             url = f"{self.base_url}/api/spot/v1/market/candles"
             params = {
-                "symbol": symbol,
+                "symbol": api_symbol,
                 "period": period,
                 "limit": str(limit)
             }
