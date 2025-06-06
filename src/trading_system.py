@@ -14,6 +14,7 @@ import warnings
 import logging
 from pathlib import Path
 import sys
+import io
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -166,9 +167,9 @@ class BitgetAPI:
                         n_after = len(df)
                         logger.debug(f"Cleaned DataFrame for {symbol}: dropped {n_before-n_after} rows; shape now {df.shape}")
                         # Log DataFrame info for diagnostics
-                        buf = []
+                        buf = io.StringIO()
                         df.info(buf=buf)
-                        logger.debug(f"DataFrame info for {symbol}:\n{''.join(buf)}")
+                        logger.debug(f"DataFrame info for {symbol}:\n{buf.getvalue()}")
                         # Defensive checks
                         if df.empty:
                             logger.warning(f"No data returned for {symbol} after cleaning")
