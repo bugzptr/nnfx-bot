@@ -874,12 +874,12 @@ if __name__ == "__main__":
                 logger.info(f"Dummy API cfg created: {path_api_cfg_main}. Please update.")
             except Exception as e_dum_api_main: logger.error(f"Dummy API cfg creation err: {e_dum_api_main}")
         
-        symbols_for_run_main = ['BTCUSDT'] # Test with one symbol
-        num_proc_workers_main = 1          # Force single worker for easier log reading
+        # symbols_for_run_main = ['BTCUSDT'] # Test with one symbol
+        # num_proc_workers_main = 1          # Force single worker for easier log reading
         
-        # symbols_for_run_main = None # Uncomment for dynamic selection
-        # cpus_main = os.cpu_count()
-        # num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
+        symbols_for_run_main = None # Uncomment for dynamic selection
+        cpus_main = os.cpu_count()
+        num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
         
         logger.info(f"Using up to {num_proc_workers_main} worker processes for scan.")
 
