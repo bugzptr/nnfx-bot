@@ -71,38 +71,37 @@ pip install -r requirements.txt
 
 4. **Configure API credentials:**
 ```bash
-cp src/config.py.example src/config.py
-nano src/config.py  # Add your Bitget API credentials
+cp config/api_config.json.example config/api_config.json
+# Edit config/api_config.json and add your Bitget API credentials
 ```
 
-5. **Run initial test:**
+   Example `config/api_config.json`:
+   ```json
+   {
+     "api_key": "your_api_key_here",
+     "secret_key": "your_secret_key_here",
+     "passphrase": "your_passphrase_here",
+     "sandbox": true
+   }
+   ```
+
+5. **First run:**
+- The app will automatically create the `logs`, `data`, and `results` directories if they do not exist.
+
+6. **Run the bot:**
 ```bash
-python run_analysis.py --mode=test
+python run_analysis.py --mode=test      # Quick test
+python run_analysis.py --mode=scan      # Full scan and backtest
+python run_analysis.py --mode=signals   # Get current trading signals
+python run_analysis.py --mode=all       # Complete analysis (test + scan + signals)
 ```
 
 ## ⚙️ Configuration
 
-Edit `src/config.py` to customize:
-
-```python
-# API Configuration
-BITGET_CONFIG = {
-    'api_key': 'your_api_key_here',
-    'secret_key': 'your_secret_key_here', 
-    'passphrase': 'your_passphrase_here',
-    'sandbox': True  # Set to False for live trading
-}
-
-# Trading Parameters
-RISK_PER_TRADE = 0.015  # 1.5% risk per trade
-MAX_PAIRS_TO_TEST = 15  # Limit for VPS resources
-
-# Crypto pairs to analyze
-TEST_PAIRS = [
-    'BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT',
-    # Add more pairs as needed
-]
-```
+- All API credentials are now stored in `config/api_config.json` (not in Python files).
+- Do **not** commit your real API credentials to version control.
+- The app will auto-create required folders (`logs`, `data`, `results`).
+- For advanced settings, see `SETUP.md`.
 
 ## 🔧 Usage
 
