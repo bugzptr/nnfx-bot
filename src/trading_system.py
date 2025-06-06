@@ -8,7 +8,7 @@ import time
 import json
 import os
 from datetime import datetime, timedelta
-import ta
+import ta # Make sure 'ta' is installed: pip install ta
 from typing import Dict, List, Tuple, Optional, Union, Any
 import warnings
 import logging
@@ -42,21 +42,33 @@ default_config_for_fallback = {
     "risk_per_trade": 0.015,
     "stop_loss_atr_multiplier": 2.0,
     "take_profit_atr_multiplier": 3.0,
-    "indicators": { "tema_period": 21, "cci_period": 14, "elder_fi_period": 13,
-                    "chandelier_period": 22, "chandelier_multiplier": 3.0,
-                    "kijun_sen_period": 26, "williams_r_period": 14, "williams_r_threshold": -50,
-                    "klinger_fast_ema": 34, "klinger_slow_ema": 55, "klinger_signal_ema": 13,
-                    "psar_step": 0.02, "psar_max_step": 0.2,
-                    "atr_period_risk": 14, "atr_period_chandelier": 22},
-    "scoring": { "win_rate_weight": 0.25, "profit_factor_weight": 0.25, "return_pct_weight": 0.20,
-                 "trade_frequency_weight": 0.10, "sharpe_ratio_weight": 0.20,
-                 "drawdown_penalty_multiplier": 1.5, "drawdown_penalty_weight": 0.05,
-                 "consecutive_loss_penalty_multiplier": 3.0, "consecutive_loss_penalty_weight": 0.03,
-                 "var_95_penalty_multiplier": 5.0, "var_95_penalty_weight": 0.02,
-                 "profit_factor_inf_score": 50.0, "sharpe_ratio_inf_score": 50.0}, 
-    "signal_confidence": { "min_recent_data_for_confidence": 5, "default_confidence": 0.5, 
-                           "signal_support_weight": 0.4, "trend_consistency_weight": 0.25,
-                           "momentum_consistency_weight": 0.2, "volume_consistency_weight": 0.15},
+    "indicators": { 
+        "tema_period": 21, 
+        "cci_period": 14, 
+        "elder_fi_period": 13,
+        "chandelier_period": 22, "chandelier_multiplier": 3.0,
+        "kijun_sen_period": 26, 
+        "williams_r_period": 14, "williams_r_threshold": -50,
+        # These klinger keys will now be used for PVO
+        "klinger_fast_ema": 12, # PVO Fast EMA default
+        "klinger_slow_ema": 26, # PVO Slow EMA default
+        "klinger_signal_ema": 9,  # PVO Signal EMA default
+        "psar_step": 0.02, "psar_max_step": 0.2,
+        "atr_period_risk": 14, "atr_period_chandelier": 22
+    },
+    "scoring": { 
+        "win_rate_weight": 0.25, "profit_factor_weight": 0.25, "return_pct_weight": 0.20,
+        "trade_frequency_weight": 0.10, "sharpe_ratio_weight": 0.20,
+        "drawdown_penalty_multiplier": 1.5, "drawdown_penalty_weight": 0.05,
+        "consecutive_loss_penalty_multiplier": 3.0, "consecutive_loss_penalty_weight": 0.03,
+        "var_95_penalty_multiplier": 5.0, "var_95_penalty_weight": 0.02,
+        "profit_factor_inf_score": 50.0, "sharpe_ratio_inf_score": 50.0
+    }, 
+    "signal_confidence": { 
+        "min_recent_data_for_confidence": 5, "default_confidence": 0.5, 
+        "signal_support_weight": 0.4, "trend_consistency_weight": 0.25,
+        "momentum_consistency_weight": 0.2, "volume_consistency_weight": 0.15
+    },
     "cleanup": {"cache_days_old": 7, "max_results_to_keep": 20, "cache_klines_freshness_hours": 4}
 }
 
@@ -102,12 +114,12 @@ class StrategyConfig:
 
 strategy_config_global = StrategyConfig()
 
-class BitgetAPI:
+class BitgetAPI: # No changes from previous full version
     def __init__(self, api_key: str = "", secret_key: str = "", passphrase: str = "", sandbox: bool = True):
         self.api_key = api_key
         self.secret_key = secret_key
         self.passphrase = passphrase
-        self.base_url = "https://api.bitget.com"
+        self.base_url = "https://api.bitget.com" 
         self.session = requests.Session()
         self.rate_limit_delay = 0.25 
 
@@ -120,19 +132,15 @@ class BitgetAPI:
         message_to_sign = timestamp + method.upper() + request_path
         if body_string: 
             message_to_sign += body_string
-        # Bitget v1 does not typically include query_string in signature for GET requests
         mac = hmac.new(self.secret_key.encode('utf-8'), message_to_sign.encode('utf-8'), hashlib.sha256)
         return base64.b64encode(mac.digest()).decode('utf-8')
 
     def _get_headers(self, method: str, request_path: str, query_string: str = "", body_string: str = "") -> Dict[str, str]:
         timestamp = str(int(time.time() * 1000))
-        # Pass query_string and body_string to _generate_signature if your API requires them in the sig base string
-        # For Bitget v1 spot, usually only timestamp + method + requestPath + body (if POST)
-        # For GET, body is empty string for signature.
         sig_body_string = body_string if method.upper() != "GET" else ""
         headers = {
             "ACCESS-KEY": self.api_key,
-            "ACCESS-SIGN": self._generate_signature(timestamp, method, request_path, query_string="", body_string=sig_body_string), # query_string often not in v1 sig
+            "ACCESS-SIGN": self._generate_signature(timestamp, method, request_path, query_string="", body_string=sig_body_string),
             "ACCESS-TIMESTAMP": timestamp,
             "ACCESS-PASSPHRASE": self.passphrase,
             "Content-Type": "application/json;charset=UTF-8", 
@@ -163,7 +171,7 @@ class BitgetAPI:
         
         max_r, df_out = 3, pd.DataFrame()
         for attempt in range(max_r):
-            headers = self._get_headers("GET", request_path) # Body is empty for GET signature
+            headers = self._get_headers("GET", request_path) 
             try:
                 resp = self.session.get(f"{self.base_url}{request_path}", params=params, headers=headers, timeout=20)
                 logger.debug(f"[{symbol}] Kline API (att {attempt+1}): {resp.status_code}, Resp: {resp.text[:250]}")
@@ -190,7 +198,7 @@ class BitgetAPI:
                     return df_out 
                 else:
                     err_msg, err_code = api_data.get('msg', 'Unknown API error'), api_data.get('code', 'N/A')
-                    logger.warning(f"[{symbol}] API error klines (Code {err_code}): {msg}")
+                    logger.warning(f"[{symbol}] API error klines (Code {err_code}): {err_msg}") # Corrected variable name
                     if str(err_code) == '40309': return df_out 
                     if attempt < max_r - 1: time.sleep(1 + 2**attempt + np.random.rand()) 
             except requests.exceptions.RequestException as e_req:
@@ -224,33 +232,66 @@ class NNFXIndicators:
     def __init__(self, config: StrategyConfig):
         self.config_params = config.get("indicators", {})
     def _get_param(self, key: str, default: Any) -> Any: return self.config_params.get(key, default)
+    
     def tema(self, data: pd.Series) -> pd.Series:
         p = self._get_param("tema_period", 21)
         try:
             e1=data.ewm(span=p,adjust=False).mean(); e2=e1.ewm(span=p,adjust=False).mean(); e3=e2.ewm(span=p,adjust=False).mean()
             return 3*e1 - 3*e2 + e3
         except Exception as e: logger.error(f"TEMA err(p={p}): {e}"); return pd.Series(np.nan,index=data.index)
+
     def kijun_sen(self, high: pd.Series, low: pd.Series) -> pd.Series:
         p = self._get_param("kijun_sen_period", 26); min_p = max(1,min(p, p//2 if p>1 else 1))
         try: return (high.rolling(p,min_p).max() + low.rolling(p,min_p).min())/2
         except Exception as e: logger.error(f"KijunSen err(p={p}): {e}"); return pd.Series(np.nan,index=high.index)
+
     def cci(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
         p = self._get_param("cci_period", 14)
         try: return ta.trend.CCIIndicator(high,low,close,p,fillna=False).cci()
         except Exception as e: logger.error(f"CCI err(p={p}): {e}"); return pd.Series(np.nan,index=high.index)
+
     def williams_r(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
         p = self._get_param("williams_r_period", 14)
         try: return ta.momentum.WilliamsRIndicator(high,low,close,p,fillna=False).williams_r()
         except Exception as e: logger.error(f"W%R err(p={p}): {e}"); return pd.Series(np.nan,index=high.index)
+
     def elder_force_index(self, close: pd.Series, volume: pd.Series) -> pd.Series:
         p = self._get_param("elder_fi_period", 13)
         try: return ta.volume.ForceIndexIndicator(close,volume,p,fillna=False).force_index()
         except Exception as e: logger.error(f"ElderFI err(p={p}): {e}"); return pd.Series(np.nan,index=close.index)
-    def klinger_oscillator(self, high: pd.Series, low: pd.Series, close: pd.Series, vol: pd.Series) -> Tuple[pd.Series, pd.Series]:
-        f,s,sg = self._get_param("klinger_fast_ema",34), self._get_param("klinger_slow_ema",55), self._get_param("klinger_signal_ema",13)
+
+    # Method name 'klinger_oscillator' is kept for compatibility with DualNNFXSystem
+    # but it now calculates Percentage Volume Oscillator (PVO)
+    def klinger_oscillator(self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> Tuple[pd.Series, pd.Series]:
+        # Parameters are re-purposed from Klinger's config keys.
+        # Ensure these are appropriate for PVO in strategy_config.json or use PVO defaults.
+        fast_period = self._get_param("klinger_fast_ema", 12) # PVO typical fast
+        slow_period = self._get_param("klinger_slow_ema", 26) # PVO typical slow
+        signal_period = self._get_param("klinger_signal_ema", 9)  # PVO typical signal
+
+        logger.debug(f"Calculating Percentage Volume Oscillator (PVO) with params: fast={fast_period}, slow={slow_period}, signal={signal_period} (using klinger config keys)")
+
         try:
-            ki=ta.volume.KlingerVolumeOscillator(high,low,close,vol,f,s,sg,fillna=False); return ki.klinger(), ki.klinger_signal()
-        except Exception as e: logger.error(f"Klinger err(f{f}s{s}g{sg}): {e}"); nan_s=pd.Series(np.nan,index=high.index); return nan_s,nan_s
+            pvo_indicator = ta.volume.PercentageVolumeOscillator(
+                volume=volume,
+                window_slow=slow_period,
+                window_fast=fast_period,
+                window_sign=signal_period,
+                fillna=False
+            )
+            pvo_line = pvo_indicator.pvo()
+            pvo_signal_line = pvo_indicator.pvo_signal()
+            
+            return pvo_line, pvo_signal_line
+        except AttributeError as ae:
+            logger.error(f"AttributeError calculating PVO (likely ta lib version issue or PVO class structure): {ae}")
+            nan_s = pd.Series(np.nan, index=volume.index, dtype=float)
+            return nan_s, nan_s
+        except Exception as e:
+            logger.error(f"Error calculating PVO(f={fast_period},s={slow_period},sig={signal_period}): {e}")
+            nan_s = pd.Series(np.nan, index=volume.index, dtype=float)
+            return nan_s, nan_s
+    
     def chandelier_exit(self, high: pd.Series, low: pd.Series, close: pd.Series) -> Tuple[pd.Series, pd.Series]:
         p,m,ap = self._get_param("chandelier_period",22), self._get_param("chandelier_multiplier",3.0), self._get_param("atr_period_chandelier",22)
         try:
@@ -258,10 +299,12 @@ class NNFXIndicators:
             h_h = high.rolling(p,min_p).max(); l_l = low.rolling(p,min_p).min()
             return h_h-(m*atr_s), l_l+(m*atr_s)
         except Exception as e: logger.error(f"Chandelier err(p{p}m{m}): {e}"); nan_s=pd.Series(np.nan,index=high.index); return nan_s,nan_s
+
     def parabolic_sar(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
         st,mst = self._get_param("psar_step",0.02), self._get_param("psar_max_step",0.2)
         try: return ta.trend.PSARIndicator(high,low,close,st,mst,fillna=False).psar()
         except Exception as e: logger.error(f"PSAR err(s{st}m{mst}): {e}"); return pd.Series(np.nan,index=high.index)
+
     def atr(self, high: pd.Series, low: pd.Series, close: pd.Series, period: Optional[int] = None) -> pd.Series:
         atr_p = period if period is not None else self._get_param("atr_period_risk",14)
         try: return ta.volatility.AverageTrueRange(high,low,close,atr_p,fillna=False).average_true_range()
@@ -275,11 +318,10 @@ def _backtest_worker_process(api_config_dict: Dict, strategy_config_path_str: st
         result = worker_system.backtest_pair(symbol)
         return result
     except Exception as e_w:
-        # This print will go to the worker's stdout, not easily captured by main process logger
         print(f"WORKER PID {os.getpid()} UNHANDLED ERROR for {symbol}: {e_w}", file=sys.stderr)
         return {"symbol": symbol, "error": f"Worker process unhandled exception: {str(e_w)}"}
 
-class DualNNFXSystem:
+class DualNNFXSystem: # No changes from previous full version here, except what NNFXIndicators calculates
     def __init__(self, bitget_api_instance: BitgetAPI, config_instance: StrategyConfig):
         self.api = bitget_api_instance
         self.config = config_instance 
@@ -290,7 +332,7 @@ class DualNNFXSystem:
         try:
             res = func(*args)
             if isinstance(res, pd.Series) and res.isnull().all() and not res.empty:
-                logger.warning(f"Indicator '{log_name_prefix}' resulted in all NaNs (len {len(res)}).")
+                logger.warning(f"Indicator '{log_name_prefix}' resulted in all NaNs (len {len(res)}). Check input data or params.")
             elif isinstance(res, tuple) and all(isinstance(s,pd.Series) and s.isnull().all() and not s.empty for s in res):
                 logger.warning(f"Indicator '{log_name_prefix}' (tuple) resulted in all NaNs.")
             return res
@@ -322,8 +364,10 @@ class DualNNFXSystem:
         
         data['kijun_sen'] = self._safe_calc_ind(idx, f"[{symbol}] KijunSen", ind.kijun_sen, data['high'], data['low'])
         data['williams_r'] = self._safe_calc_ind(idx, f"[{symbol}] W%R", ind.williams_r, data['high'], data['low'], data['close'])
-        k, ks = self._safe_calc_ind(idx, f"[{symbol}] Klinger", ind.klinger_oscillator, data['high'], data['low'], data['close'], data['volume'])
-        data['klinger'], data['klinger_signal'] = k, ks
+        # The method is still called klinger_oscillator, but now calculates PVO
+        k_or_pvo_line, k_or_pvo_signal = self._safe_calc_ind(idx, f"[{symbol}] Klinger/PVO", ind.klinger_oscillator, data['high'], data['low'], data['close'], data['volume'])
+        data['klinger'] = k_or_pvo_line         # This column will now hold the PVO line
+        data['klinger_signal'] = k_or_pvo_signal # This column will now hold the PVO signal line
         data['psar'] = self._safe_calc_ind(idx, f"[{symbol}] PSAR", ind.parabolic_sar, data['high'], data['low'], data['close'])
         data['atr'] = self._safe_calc_ind(idx, f"[{symbol}] ATR-Risk", ind.atr, data['high'], data['low'], data['close']) 
         return data
@@ -341,6 +385,7 @@ class DualNNFXSystem:
         df['system_b_baseline'] = np.select([df['close'] > df['kijun_sen'], df['close'] < df['kijun_sen']], [1, -1], default=0)
         wpr_thresh = self.config.get("indicators.williams_r_threshold", -50) 
         df['system_b_confirmation'] = np.select([df['williams_r'] > wpr_thresh, df['williams_r'] < wpr_thresh], [1, -1], default=0)
+        # This now compares PVO line with PVO signal line
         df['system_b_volume'] = np.select([df['klinger'] > df['klinger_signal'], df['klinger'] < df['klinger_signal']], [1, -1], default=0)
 
         df['long_signal'] = ((df['system_a_baseline'] == 1) & (df['system_a_confirmation'] == 1) & (df['system_a_volume'] == 1) &
@@ -352,9 +397,7 @@ class DualNNFXSystem:
         return df
 
     def backtest_pair(self, symbol: str) -> Dict: 
-        # This print is for worker process, will appear on console if worker runs directly
-        # print(f"WORKER PID {os.getpid()}: Backtesting {symbol}...")
-        logger.debug(f"[{symbol}] Backtest process started for symbol.") # Main process won't see this if in worker.
+        logger.debug(f"[{symbol}] Backtest process started for symbol.") 
 
         cfg = self.config 
         
@@ -498,13 +541,13 @@ class DualNNFXSystem:
                             results.append(res) 
                         elif res.get('error') == 'No trades': 
                             failed[s_name] = f"Trades < {min_tr} ({res.get('total_trades',0)})"
-                        else: # Other type of error from result dict 
+                        else: 
                             failed[s_name] = res.get('error', 'Unknown processing error')
                     else: 
                         failed[s_name] = res.get('error', 'Unknown worker error')
                 except Exception as e_fut:
-                    logger.error(f"Exception for {s_name} future: {e_fut}", exc_info=False) # Keep main log cleaner
-                    failed[s_name] = f"Future processing error: {str(e_fut)[:100]}" # Store truncated error
+                    logger.error(f"Exception for {s_name} future: {e_fut}", exc_info=False) 
+                    failed[s_name] = f"Future processing error: {str(e_fut)[:100]}" 
         
         logger.info(f"Scan done. Ranked: {len(results)}, Failed/Skipped: {len(failed)}.")
         df_res = pd.DataFrame(results) 
@@ -512,7 +555,6 @@ class DualNNFXSystem:
             cols_for_final_df = ['symbol', 'score', 'total_trades', 'win_rate', 'profit_factor', 'total_return_r', 
                                  'total_return_pct', 'max_drawdown_pct', 'sharpe_ratio', 'sortino_ratio', 
                                  'max_consecutive_losses', 'var_95_r', 'max_loss_r']
-            # Create missing columns with default values if not present in all results
             for col_report in cols_for_final_df:
                 if col_report not in df_res.columns:
                     is_numeric_col = any(kw in col_report for kw in ['pct', 'ratio', 'score', 'r', 'trades', 'losses'])
@@ -566,7 +608,6 @@ class DualNNFXSystem:
                 df_s = self.generate_signals(df_i)
                 last,curr = df_s.iloc[-2],df_s.iloc[-1] 
                 sig,conf="NONE",0.0
-                # Pass N most recent *closed* candles for confidence. df_s.iloc[-X:-1]
                 hist_for_conf = df_s.iloc[-(cfg_sc.get("min_recent_data_for_confidence",5)+1) : -1] 
                 
                 if last.get('long_signal',False): sig,conf = "LONG", self._calculate_signal_confidence(hist_for_conf,'long',cfg_sc)
@@ -594,7 +635,7 @@ class DualNNFXSystem:
         sw,tw,mw,vw = cfg_c.get("signal_support_weight",.4),cfg_c.get("trend_consistency_weight",.25),cfg_c.get("momentum_consistency_weight",.2),cfg_c.get("volume_consistency_weight",.15)
         direction = 1 if sig_type=='long' else -1
         sig_col = 'long_signal' if sig_type=='long' else 'short_signal'
-        s_sup = recent_df.get(sig_col,pd.Series(False, index=recent_df.index)).mean() # Ensure index match if col missing
+        s_sup = recent_df.get(sig_col,pd.Series(False, index=recent_df.index)).mean() 
         s_trend = (recent_df.get('system_a_baseline',pd.Series(0, index=recent_df.index)) == direction).mean()
         s_mom = (recent_df.get('system_a_confirmation',pd.Series(0, index=recent_df.index)) == direction).mean()
         s_vol = (recent_df.get('system_a_volume',pd.Series(0, index=recent_df.index)) == direction).mean()
@@ -609,7 +650,6 @@ class DualNNFXSystem:
                 rankings_df.head(min(len(rankings_df),200)).to_excel(w,sheet_name='Backtest Rankings',index=False)
                 current_signals_df.to_excel(w,sheet_name='Current Signals',index=False)
                 if not rankings_df.empty:
-                    # Use .get for safety in case a metric column was all NaN and dropped from df_ranked
                     avg_wr_val = rankings_df['win_rate'].mean() if 'win_rate' in rankings_df else np.nan
                     pf_finite = rankings_df['profit_factor'][np.isfinite(rankings_df['profit_factor'])] if 'profit_factor' in rankings_df else pd.Series(dtype=float)
                     avg_pf_val = pf_finite.mean() if not pf_finite.empty else np.nan
@@ -633,26 +673,29 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
         logger.info(f"Using provided override list of {len(symbols_to_scan)} symbols.")
     else:
         logger.info("Fetching all tickers for dynamic selection by volume...")
-        all_t = api_inst.get_all_tickers_data() # List of dicts
+        all_t = api_inst.get_all_tickers_data() 
         
         if all_t:
             logger.info(f"CRITICAL DEBUG: Total tickers fetched: {len(all_t)}")
             if all_t: 
                 logger.info(f"CRITICAL DEBUG: Sample raw ticker [0]: {all_t[0] if all_t else 'N/A'}")
-                # Find a BTCUSDT like pair for detailed sample
                 for ticker_sample_debug in all_t:
-                    # Check multiple possible keys for symbol identifier
-                    sym_id_debug = ticker_sample_debug.get('symbolId', ticker_sample_debug.get('symbol', ticker_sample_debug.get('s', '')))
+                    sym_id_debug_key_options = ['symbol', 'symbolId', 's', 'pair'] # Add more if needed
+                    sym_id_debug = ""
+                    for k_opt in sym_id_debug_key_options:
+                        if ticker_sample_debug.get(k_opt):
+                            sym_id_debug = ticker_sample_debug.get(k_opt)
+                            break
                     if "BTC" in sym_id_debug.upper() and "USDT" in sym_id_debug.upper():
-                        logger.info(f"CRITICAL DEBUG: Potential BTCUSDT like sample: {ticker_sample_debug}")
+                        logger.info(f"CRITICAL DEBUG: Potential BTCUSDT like sample (key used for sym: '{k_opt if sym_id_debug else 'N/A'}'): {ticker_sample_debug}")
                         break
-
-
-            # -------- SYMBOL IDENTIFIER KEY - THIS IS THE PART TO ADJUST --------
-            # Based on your CRITICAL DEBUG output, change 'symbolId' to the correct key from Bitget API
-            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol' # <--- CHANGE THIS if CRITICAL DEBUG shows a different key
+            
+            # -------- USER ACTION REQUIRED: Confirm SYMBOL and VOLUME keys --------
+            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol' # Based on last log, this seems correct for Bitget
+            VOLUME_KEY_FROM_API = 'usdtVol'       # Based on last log, this seems correct for Bitget
+            # Ensure these match what your CRITICAL DEBUG logs show for 'symbol' and 'usdtVol' or similar keys.
             # --------------------------------------------------------------------
-            logger.info(f"DEBUG: Using '{SYMBOL_IDENTIFIER_KEY_FROM_API}' as the key for symbol identification.")
+            logger.info(f"DEBUG: Using '{SYMBOL_IDENTIFIER_KEY_FROM_API}' for symbol ID and '{VOLUME_KEY_FROM_API}' for primary USDT volume.")
 
             usdt_t_init = [tk for tk in all_t if tk.get(SYMBOL_IDENTIFIER_KEY_FROM_API,'').upper().endswith('USDT')]
             logger.info(f"DEBUG: Found {len(usdt_t_init)} USDT tickers initially (using key '{SYMBOL_IDENTIFIER_KEY_FROM_API}').")
@@ -677,28 +720,18 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
                 elif usdt_t_init: logger.warning("DEBUG: Base filtering resulted in empty list. Check 'major_bases_for_filtering' in config.")
             
             def get_vol(ticker_d_item): 
-                # -------- VOLUME KEY - THIS IS THE PART TO ADJUST --------
-                # Based on your CRITICAL DEBUG output for a ticker, identify the USDT volume key
-                VOLUME_KEY_FROM_API = 'usdtVol' # <--- CHANGE THIS if CRITICAL DEBUG shows a different key like 'quoteVol', 'quoteVolume', 'vol24hQuote', etc.
-                # Fallback keys if the primary one is not found or is invalid
-                FALLBACK_VOLUME_KEYS = ['quoteVol', 'quoteVolume', 'vol'] 
-                # -------------------------------------------------------
-                logger.debug(f"DEBUG get_vol: For {ticker_d_item.get(SYMBOL_IDENTIFIER_KEY_FROM_API)}, trying primary volume key '{VOLUME_KEY_FROM_API}'.")
-
                 vol_str = ticker_d_item.get(VOLUME_KEY_FROM_API)
                 if vol_str is not None:
                     try: return float(str(vol_str))
                     except (ValueError,TypeError): 
                         logger.debug(f"DEBUG get_vol: Primary key '{VOLUME_KEY_FROM_API}' value '{vol_str}' invalid for {ticker_d_item.get(SYMBOL_IDENTIFIER_KEY_FROM_API)}. Trying fallbacks.")
                 
+                FALLBACK_VOLUME_KEYS = ['quoteVol', 'quoteVolume'] # Reduced fallbacks
                 for fb_key in FALLBACK_VOLUME_KEYS:
                     vol_str_fb = ticker_d_item.get(fb_key)
                     if vol_str_fb is not None:
-                        logger.debug(f"DEBUG get_vol: For {ticker_d_item.get(SYMBOL_IDENTIFIER_KEY_FROM_API)}, trying fallback volume key '{fb_key}'.")
                         try: return float(str(vol_str_fb))
                         except (ValueError,TypeError): continue
-                
-                logger.debug(f"DEBUG get_vol: Volume not found or invalid for {ticker_d_item.get(SYMBOL_IDENTIFIER_KEY_FROM_API)} after all attempts, returning 0.")
                 return 0.0
 
             t_with_vol = [{'vol': get_vol(tk), 'ticker_obj': tk} for tk in usdt_t_base_filtered]
@@ -734,7 +767,7 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
     if not df_ranks.empty:
         payload['success'] = True
         payload['rankings_top_5'] = df_ranks[['symbol','score','win_rate','total_return_pct']].head().to_dict('records')
-        top_sigs_symbols = df_ranks['symbol'].head(5).tolist() # Use 'symbol' from df_ranks
+        top_sigs_symbols = df_ranks['symbol'].head(5).tolist() 
         if top_sigs_symbols:
             logger.info(f"Getting current signals for top ranked: {top_sigs_symbols}")
             df_curr_sigs = system_inst.get_current_signals(top_sigs_symbols)
@@ -766,14 +799,8 @@ def cleanup_old_files():
     logger.info(f"Cleanup done. Removed {clean_n} files.")
 
 if __name__ == "__main__":
-    # This check ensures multiprocessing works correctly when script is frozen/compiled
-    # For normal Python script execution, it's not strictly necessary but good practice.
-    if sys.platform.startswith('win'): # For Windows compatibility with multiprocessing
-        # You might need to do this if you're packaging with PyInstaller on Windows
-        # from multiprocessing import freeze_support
-        # freeze_support()
-        pass
-
+    if sys.platform.startswith('win'):
+        pass # from multiprocessing import freeze_support; freeze_support()
 
     ts_run = datetime.now().strftime('%Y%m%d_%H%M%S')
     h_file_log = None
@@ -782,13 +809,13 @@ if __name__ == "__main__":
         path_log_file_main = logs_dir_main / f"system_run_{ts_run}.log"
         h_file_log = logging.FileHandler(path_log_file_main)
         h_file_log.setLevel(logging.INFO) 
-        h_file_log.setFormatter(logging.Formatter('%(asctime)s - %(processName)s - %(name)s - %(levelname)s - %(message)s')) # Added processName
+        h_file_log.setFormatter(logging.Formatter('%(asctime)s - %(processName)s - %(name)s - %(levelname)s - %(message)s')) 
         logging.getLogger().addHandler(h_file_log)
         
         for h_console_main in logging.getLogger().handlers:
             if isinstance(h_console_main, logging.StreamHandler) and not isinstance(h_console_main, logging.FileHandler):
                 h_console_main.setLevel(logging.INFO) 
-                h_console_main.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')) # Simpler console format
+                h_console_main.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')) 
         
         logger.info(f"NNFX System Run ID: {ts_run}")
         logger.info(f"Strategy Config: {strategy_config_global.config_path}")
@@ -811,11 +838,11 @@ if __name__ == "__main__":
             except Exception as e_dum_api_main: logger.error(f"Dummy API cfg creation err: {e_dum_api_main}")
         
         symbols_for_run_main = None 
-        # symbols_for_run_main = ['BTCUSDT', 'ETHUSDT'] # Example manual override
+        # symbols_for_run_main = ['BTCUSDT', 'ETHUSDT'] 
         
         cpus_main = os.cpu_count()
         num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
-        # num_proc_workers_main = 1 # Force single worker for easier debugging if needed
+        # num_proc_workers_main = 1 # Override for testing symbol selection without parallelism
         logger.info(f"Using up to {num_proc_workers_main} worker processes for scan.")
 
         output_analysis_main = run_comprehensive_analysis(
