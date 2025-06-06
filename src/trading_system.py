@@ -249,7 +249,7 @@ class NNFXIndicators:
     def klinger_oscillator(self, high: pd.Series, low: pd.Series, close: pd.Series, vol: pd.Series) -> Tuple[pd.Series, pd.Series]:
         f,s,sg = self._get_param("klinger_fast_ema",34), self._get_param("klinger_slow_ema",55), self._get_param("klinger_signal_ema",13)
         try:
-            ki=ta.volume.KlingerOscillator(high,low,close,vol,f,s,sg,fillna=False); return ki.klinger(), ki.klinger_signal()
+            ki=ta.volume.KlingerVolumeOscillator(high,low,close,vol,f,s,sg,fillna=False); return ki.klinger(), ki.klinger_signal()
         except Exception as e: logger.error(f"Klinger err(f{f}s{s}g{sg}): {e}"); nan_s=pd.Series(np.nan,index=high.index); return nan_s,nan_s
     def chandelier_exit(self, high: pd.Series, low: pd.Series, close: pd.Series) -> Tuple[pd.Series, pd.Series]:
         p,m,ap = self._get_param("chandelier_period",22), self._get_param("chandelier_multiplier",3.0), self._get_param("atr_period_chandelier",22)
