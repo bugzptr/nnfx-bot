@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple, Optional, Union
 import warnings
 import logging
 from pathlib import Path
+import sys
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -1409,20 +1410,21 @@ if __name__ == "__main__":
     logger.info("NNFX Bot Trading System Started")
     logger.info(f"Log file: {log_file}")
     
-    # Example configuration
-    example_config = {
-        'api_key': '',
-        'secret_key': '',
-        'passphrase': '',
-        'sandbox': True
-    }
+    # Load API config from JSON file
+    api_config_path = "config/api_config.json"
+    if not os.path.exists(api_config_path):
+        logger.error(f"API config file not found: {api_config_path}")
+        print(f"ERROR: API config file not found: {api_config_path}")
+        sys.exit(1)
+    with open(api_config_path, "r") as f:
+        api_config = json.load(f)
     
     example_pairs = [
         'BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT'
     ]
     
     # Run analysis
-    results = run_comprehensive_analysis(example_config, example_pairs)
+    results = run_comprehensive_analysis(api_config, example_pairs)
     
     if results['success']:
         logger.info("Analysis completed successfully")
