@@ -1,5 +1,7 @@
-import os
 import sys
+import os
+# Ensure project root is in sys.path for src imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import json
 import optuna
 import logging
@@ -33,11 +35,24 @@ def load_api_config():
     return {}
 
 # --- Get Top 8 Pairs by Volume ---
-def get_top_pairs(api_config):
+def get_top_pairs(api_config, n=8):
     api = BitgetAPI(**api_config)
-    symbols = api.get_symbols()
-    logger.info(f"Selected top {len(symbols)} pairs: {symbols[:8]}")
-    return symbols[:8]
+    all_tickers = api.get_all_tickers_data()
+    if not all_tickers:
+        logger.warning("No tickers fetched, using fallback ['BTCUSDT', 'ETHUSDT']")
+        return ['BTCUSDT', 'ETHUSDT']
+    SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol'
+    VOLUME_KEY_FROM_API = 'usdtVol'
+    usdt_tickers = [tk for tk in all_tickers if tk.get(SYMBOL_IDENTIFIER_KEY_FROM_API, '').upper().endswith('USDT')]
+    def get_vol(ticker):
+        try:
+            return float(ticker.get(VOLUME_KEY_FROM_API, 0))
+        except Exception:
+            return 0.0
+    usdt_tickers.sort(key=get_vol, reverse=True)
+    top_pairs = [tk[SYMBOL_IDENTIFIER_KEY_FROM_API].replace('_SPBL', '') for tk in usdt_tickers[:n]]
+    logger.info(f"Selected top {len(top_pairs)} pairs: {top_pairs}")
+    return top_pairs
 
 # --- Fetch klines for a symbol ---
 def fetch_klines(api_config, symbol, limit=1000):
