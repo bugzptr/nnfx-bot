@@ -149,25 +149,30 @@ class BitgetAPI:
                         )
                         df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
                         df = df.set_index('timestamp')
-                        df = df.astype(float)
+                        # Convert all columns to numeric (float), coerce errors to NaN
+                        for col in ['open', 'high', 'low', 'close', 'volume']:
+                            df[col] = pd.to_numeric(df[col], errors='coerce')
                         df = df.sort_index()
-                        logger.debug(f"Parsed DataFrame for {symbol}:\n{df.head()}")
-                        
+                        logger.debug(f"Parsed DataFrame for {symbol} (pre-clean):\n{df.head()}\nShape: {df.shape}")
+                        # Clean NaN/inf values
+                        n_before = len(df)
+                        df = df.replace([np.inf, -np.inf], np.nan).dropna()
+                        n_after = len(df)
+                        logger.debug(f"Cleaned DataFrame for {symbol}: dropped {n_before-n_after} rows; shape now {df.shape}")
+                        # Log DataFrame info for diagnostics
+                        buf = []
+                        df.info(buf=buf)
+                        logger.debug(f"DataFrame info for {symbol}:\n{''.join(buf)}")
                         # Defensive checks
                         if df.empty:
-                            logger.warning(f"No data returned for {symbol}")
+                            logger.warning(f"No data returned for {symbol} after cleaning")
                             return pd.DataFrame()
-                        if df.isnull().values.any() or np.isinf(df.values).any():
-                            logger.warning(f"Data for {symbol} contains NaN or inf values.")
-                            return pd.DataFrame()
-                        
                         # Cache the data
                         try:
                             df.to_csv(cache_file)
                             logger.debug(f"Cached data for {symbol}")
                         except Exception as e:
                             logger.warning(f"Failed to cache data for {symbol}: {e}")
-                        
                         return df
                     
                     else:
