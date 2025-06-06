@@ -101,8 +101,10 @@ class BitgetAPI:
             DataFrame with OHLCV data
         """
         try:
+            # Convert granularity to lowercase for API
+            period = granularity.lower()
             # Check cache first
-            cache_file = f"data/{symbol}_{granularity}.csv"
+            cache_file = f"data/{symbol}_{period}.csv"
             if os.path.exists(cache_file):
                 cache_age = time.time() - os.path.getmtime(cache_file)
                 if cache_age < 14400:  # 4 hours
@@ -120,7 +122,7 @@ class BitgetAPI:
             url = f"{self.base_url}/api/spot/v1/market/candles"
             params = {
                 "symbol": symbol,
-                "granularity": granularity,
+                "period": period,
                 "limit": str(limit)
             }
             
