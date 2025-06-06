@@ -49,3 +49,6 @@ click>=8.0.0
 
 # Parameter Optimization
 optuna
+
+# Plotly
+plotly
