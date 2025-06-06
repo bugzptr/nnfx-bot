@@ -49,10 +49,11 @@ default_config_for_fallback = {
         "chandelier_period": 22, "chandelier_multiplier": 3.0,
         "kijun_sen_period": 26, 
         "williams_r_period": 14, "williams_r_threshold": -50,
-        # These klinger keys will now be used for PVO
-        "klinger_fast_ema": 12, # PVO Fast EMA default
-        "klinger_slow_ema": 26, # PVO Slow EMA default
-        "klinger_signal_ema": 9,  # PVO Signal EMA default
+        "cmf_window": 20, # For Chaikin Money Flow
+        # Klinger keys no longer directly used for PVO/Klinger if CMF is used
+        "klinger_fast_ema": 12, 
+        "klinger_slow_ema": 26, 
+        "klinger_signal_ema": 9,  
         "psar_step": 0.02, "psar_max_step": 0.2,
         "atr_period_risk": 14, "atr_period_chandelier": 22
     },
@@ -73,7 +74,7 @@ default_config_for_fallback = {
 }
 
 # --- Configuration Loader ---
-class StrategyConfig:
+class StrategyConfig: # No changes here
     def __init__(self, config_path_str="config/strategy_config.json"):
         self.config_path = Path(config_path_str)
         self.params = self._load_config()
@@ -114,7 +115,7 @@ class StrategyConfig:
 
 strategy_config_global = StrategyConfig()
 
-class BitgetAPI: # No changes from previous full version
+class BitgetAPI: # No changes here
     def __init__(self, api_key: str = "", secret_key: str = "", passphrase: str = "", sandbox: bool = True):
         self.api_key = api_key
         self.secret_key = secret_key
@@ -198,7 +199,7 @@ class BitgetAPI: # No changes from previous full version
                     return df_out 
                 else:
                     err_msg, err_code = api_data.get('msg', 'Unknown API error'), api_data.get('code', 'N/A')
-                    logger.warning(f"[{symbol}] API error klines (Code {err_code}): {err_msg}") # Corrected variable name
+                    logger.warning(f"[{symbol}] API error klines (Code {err_code}): {err_msg}")
                     if str(err_code) == '40309': return df_out 
                     if attempt < max_r - 1: time.sleep(1 + 2**attempt + np.random.rand()) 
             except requests.exceptions.RequestException as e_req:
@@ -260,37 +261,33 @@ class NNFXIndicators:
         try: return ta.volume.ForceIndexIndicator(close,volume,p,fillna=False).force_index()
         except Exception as e: logger.error(f"ElderFI err(p={p}): {e}"); return pd.Series(np.nan,index=close.index)
 
-    # Method name 'klinger_oscillator' is kept for compatibility with DualNNFXSystem
-    # but it now calculates Percentage Volume Oscillator (PVO)
+    # Method name 'klinger_oscillator' is kept for compatibility, calculates Chaikin Money Flow (CMF)
     def klinger_oscillator(self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> Tuple[pd.Series, pd.Series]:
-        # Parameters are re-purposed from Klinger's config keys.
-        # Ensure these are appropriate for PVO in strategy_config.json or use PVO defaults.
-        fast_period = self._get_param("klinger_fast_ema", 12) # PVO typical fast
-        slow_period = self._get_param("klinger_slow_ema", 26) # PVO typical slow
-        signal_period = self._get_param("klinger_signal_ema", 9)  # PVO typical signal
+        cmf_window = self._get_param("cmf_window", 20) # New config key for CMF window
 
-        logger.debug(f"Calculating Percentage Volume Oscillator (PVO) with params: fast={fast_period}, slow={slow_period}, signal={signal_period} (using klinger config keys)")
+        logger.debug(f"Calculating Chaikin Money Flow (CMF) with window: {cmf_window} (as System B Volume Indicator)")
 
         try:
-            pvo_indicator = ta.volume.PercentageVolumeOscillator(
+            cmf_indicator = ta.volume.ChaikinMoneyFlowIndicator(
+                high=high,
+                low=low,
+                close=close,
                 volume=volume,
-                window_slow=slow_period,
-                window_fast=fast_period,
-                window_sign=signal_period,
+                window=cmf_window,
                 fillna=False
             )
-            pvo_line = pvo_indicator.pvo()
-            pvo_signal_line = pvo_indicator.pvo_signal()
+            cmf_line = cmf_indicator.chaikin_money_flow()
             
-            return pvo_line, pvo_signal_line
-        except AttributeError as ae:
-            logger.error(f"AttributeError calculating PVO (likely ta lib version issue or PVO class structure): {ae}")
-            nan_s = pd.Series(np.nan, index=volume.index, dtype=float)
-            return nan_s, nan_s
+            # CMF is a single line. To fit the tuple (oscillator, signal) structure,
+            # we return NaNs for the "signal line" part. The signal logic needs to be adapted.
+            nan_signal_line = pd.Series(np.nan, index=volume.index, dtype=float)
+            
+            return cmf_line, nan_signal_line
+            
         except Exception as e:
-            logger.error(f"Error calculating PVO(f={fast_period},s={slow_period},sig={signal_period}): {e}")
-            nan_s = pd.Series(np.nan, index=volume.index, dtype=float)
-            return nan_s, nan_s
+            logger.error(f"Error calculating Chaikin Money Flow (window={cmf_window}): {e}")
+            empty_series = pd.Series(np.nan, index=volume.index, dtype=float)
+            return empty_series, empty_series
     
     def chandelier_exit(self, high: pd.Series, low: pd.Series, close: pd.Series) -> Tuple[pd.Series, pd.Series]:
         p,m,ap = self._get_param("chandelier_period",22), self._get_param("chandelier_multiplier",3.0), self._get_param("atr_period_chandelier",22)
@@ -321,7 +318,7 @@ def _backtest_worker_process(api_config_dict: Dict, strategy_config_path_str: st
         print(f"WORKER PID {os.getpid()} UNHANDLED ERROR for {symbol}: {e_w}", file=sys.stderr)
         return {"symbol": symbol, "error": f"Worker process unhandled exception: {str(e_w)}"}
 
-class DualNNFXSystem: # No changes from previous full version here, except what NNFXIndicators calculates
+class DualNNFXSystem: 
     def __init__(self, bitget_api_instance: BitgetAPI, config_instance: StrategyConfig):
         self.api = bitget_api_instance
         self.config = config_instance 
@@ -364,10 +361,12 @@ class DualNNFXSystem: # No changes from previous full version here, except what 
         
         data['kijun_sen'] = self._safe_calc_ind(idx, f"[{symbol}] KijunSen", ind.kijun_sen, data['high'], data['low'])
         data['williams_r'] = self._safe_calc_ind(idx, f"[{symbol}] W%R", ind.williams_r, data['high'], data['low'], data['close'])
-        # The method is still called klinger_oscillator, but now calculates PVO
-        k_or_pvo_line, k_or_pvo_signal = self._safe_calc_ind(idx, f"[{symbol}] Klinger/PVO", ind.klinger_oscillator, data['high'], data['low'], data['close'], data['volume'])
-        data['klinger'] = k_or_pvo_line         # This column will now hold the PVO line
-        data['klinger_signal'] = k_or_pvo_signal # This column will now hold the PVO signal line
+        # This now calls the method that calculates CMF (or PVO if that was the choice)
+        # The column names 'klinger' and 'klinger_signal' are retained for now.
+        # 'klinger' will hold CMF line, 'klinger_signal' will hold NaNs.
+        cmf_line, dummy_signal_line = self._safe_calc_ind(idx, f"[{symbol}] CMF (as Klinger)", ind.klinger_oscillator, data['high'], data['low'], data['close'], data['volume'])
+        data['klinger'] = cmf_line        
+        data['klinger_signal'] = dummy_signal_line 
         data['psar'] = self._safe_calc_ind(idx, f"[{symbol}] PSAR", ind.parabolic_sar, data['high'], data['low'], data['close'])
         data['atr'] = self._safe_calc_ind(idx, f"[{symbol}] ATR-Risk", ind.atr, data['high'], data['low'], data['close']) 
         return data
@@ -385,8 +384,15 @@ class DualNNFXSystem: # No changes from previous full version here, except what 
         df['system_b_baseline'] = np.select([df['close'] > df['kijun_sen'], df['close'] < df['kijun_sen']], [1, -1], default=0)
         wpr_thresh = self.config.get("indicators.williams_r_threshold", -50) 
         df['system_b_confirmation'] = np.select([df['williams_r'] > wpr_thresh, df['williams_r'] < wpr_thresh], [1, -1], default=0)
-        # This now compares PVO line with PVO signal line
-        df['system_b_volume'] = np.select([df['klinger'] > df['klinger_signal'], df['klinger'] < df['klinger_signal']], [1, -1], default=0)
+        
+        # System B Volume: Now using CMF (stored in 'klinger' column)
+        # CMF > 0 implies buying pressure, CMF < 0 implies selling pressure.
+        # 'klinger_signal' column will be all NaNs if CMF is used this way.
+        df['system_b_volume'] = np.select(
+            [df['klinger'] > 0, df['klinger'] < 0], # Condition for CMF
+            [1, -1], 
+            default=0
+        )
 
         df['long_signal'] = ((df['system_a_baseline'] == 1) & (df['system_a_confirmation'] == 1) & (df['system_a_volume'] == 1) &
                              (df['system_b_baseline'] == 1) & (df['system_b_confirmation'] == 1) & (df['system_b_volume'] == 1)).astype(bool)
@@ -396,11 +402,9 @@ class DualNNFXSystem: # No changes from previous full version here, except what 
         df['short_exit'] = ((df['close'] > df['chandelier_short']) | (df['close'] > df['psar'])).astype(bool)
         return df
 
-    def backtest_pair(self, symbol: str) -> Dict: 
+    def backtest_pair(self, symbol: str) -> Dict: # No structural changes here
         logger.debug(f"[{symbol}] Backtest process started for symbol.") 
-
         cfg = self.config 
-        
         df_klines = self.api.get_klines(symbol, "4H", limit=cfg.get("backtest_kline_limit", 1000))
         if df_klines.empty: return {"symbol": symbol, "error": "No kline data"}
         if len(df_klines) < cfg.get("backtest_min_data_after_get_klines", 100):
@@ -680,21 +684,20 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
             if all_t: 
                 logger.info(f"CRITICAL DEBUG: Sample raw ticker [0]: {all_t[0] if all_t else 'N/A'}")
                 for ticker_sample_debug in all_t:
-                    sym_id_debug_key_options = ['symbol', 'symbolId', 's', 'pair'] # Add more if needed
+                    sym_id_debug_key_options = ['symbol', 'symbolId', 's', 'pair'] 
                     sym_id_debug = ""
+                    k_opt_used = ""
                     for k_opt in sym_id_debug_key_options:
                         if ticker_sample_debug.get(k_opt):
                             sym_id_debug = ticker_sample_debug.get(k_opt)
+                            k_opt_used = k_opt
                             break
                     if "BTC" in sym_id_debug.upper() and "USDT" in sym_id_debug.upper():
-                        logger.info(f"CRITICAL DEBUG: Potential BTCUSDT like sample (key used for sym: '{k_opt if sym_id_debug else 'N/A'}'): {ticker_sample_debug}")
+                        logger.info(f"CRITICAL DEBUG: Potential BTCUSDT like sample (key used for sym: '{k_opt_used if sym_id_debug else 'N/A'}'): {ticker_sample_debug}")
                         break
             
-            # -------- USER ACTION REQUIRED: Confirm SYMBOL and VOLUME keys --------
-            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol' # Based on last log, this seems correct for Bitget
-            VOLUME_KEY_FROM_API = 'usdtVol'       # Based on last log, this seems correct for Bitget
-            # Ensure these match what your CRITICAL DEBUG logs show for 'symbol' and 'usdtVol' or similar keys.
-            # --------------------------------------------------------------------
+            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol' 
+            VOLUME_KEY_FROM_API = 'usdtVol'       
             logger.info(f"DEBUG: Using '{SYMBOL_IDENTIFIER_KEY_FROM_API}' for symbol ID and '{VOLUME_KEY_FROM_API}' for primary USDT volume.")
 
             usdt_t_init = [tk for tk in all_t if tk.get(SYMBOL_IDENTIFIER_KEY_FROM_API,'').upper().endswith('USDT')]
@@ -726,7 +729,7 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
                     except (ValueError,TypeError): 
                         logger.debug(f"DEBUG get_vol: Primary key '{VOLUME_KEY_FROM_API}' value '{vol_str}' invalid for {ticker_d_item.get(SYMBOL_IDENTIFIER_KEY_FROM_API)}. Trying fallbacks.")
                 
-                FALLBACK_VOLUME_KEYS = ['quoteVol', 'quoteVolume'] # Reduced fallbacks
+                FALLBACK_VOLUME_KEYS = ['quoteVol', 'quoteVolume'] 
                 for fb_key in FALLBACK_VOLUME_KEYS:
                     vol_str_fb = ticker_d_item.get(fb_key)
                     if vol_str_fb is not None:
@@ -800,7 +803,7 @@ def cleanup_old_files():
 
 if __name__ == "__main__":
     if sys.platform.startswith('win'):
-        pass # from multiprocessing import freeze_support; freeze_support()
+        pass 
 
     ts_run = datetime.now().strftime('%Y%m%d_%H%M%S')
     h_file_log = None
@@ -842,7 +845,7 @@ if __name__ == "__main__":
         
         cpus_main = os.cpu_count()
         num_proc_workers_main = max(1, cpus_main - 1 if cpus_main and cpus_main > 1 else 1)
-        # num_proc_workers_main = 1 # Override for testing symbol selection without parallelism
+        # num_proc_workers_main = 1 # Override for testing 
         logger.info(f"Using up to {num_proc_workers_main} worker processes for scan.")
 
         output_analysis_main = run_comprehensive_analysis(
