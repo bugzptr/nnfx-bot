@@ -12,6 +12,12 @@ import plotly.graph_objs as go
 import plotly.io as pio
 from src.trading_system import StrategyConfig, BitgetAPI, DualNNFXSystem
 
+# Ensure required directories exist
+os.makedirs('data', exist_ok=True)  # For kline caching
+
+# NOTE: For parameter importance plots, you must have scikit-learn installed:
+# pip install scikit-learn
+
 # --- Optimization Parameter Ranges ---
 optimization_ranges = {
     "tema_period": {"min": 10, "max": 50, "step": 5},
@@ -108,6 +114,17 @@ def plot_performance_comparison(results, out_path):
     except Exception as e:
         logger.warning(f"Could not generate performance comparison plot: {e}")
 
+# --- Helper: Make JSON Serializable ---
+def make_json_serializable(obj):
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(v) for v in obj]
+    elif isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    else:
+        return obj
+
 # --- Main Analysis Engine ---
 def main():
     logger.info("Starting comprehensive analysis engine with walk-forward and HTML output...")
@@ -184,7 +201,7 @@ def main():
     # --- Save Results ---
     results_path = results_dir / "analysis_results.json"
     with open(results_path, "w") as f:
-        json.dump(all_results, f, indent=2)
+        json.dump(make_json_serializable(all_results), f, indent=2)
     logger.info(f"All results saved to {results_path}")
 
     # --- Performance Comparison Plot ---
@@ -196,6 +213,23 @@ def main():
     for symbol, res in all_results.items():
         logger.info(f"{symbol}: Best IS Sharpe={res['best_value']}, Best Params={res['best_params']}")
         logger.info(f"{symbol}: OOS Sharpe={res['forward_test'].get('sharpe_ratio', 'N/A')}, OOS Win Rate={res['forward_test'].get('win_rate', 'N/A')}, OOS PF={res['forward_test'].get('profit_factor', 'N/A')}")
+
+    # --- Print Short Summary: Best Trading Pair and Config ---
+    # Find the best pair by OOS Sharpe ratio
+    best_pair = None
+    best_oos_sharpe = float('-inf')
+    for symbol, res in all_results.items():
+        oos_sharpe = res.get('forward_test', {}).get('sharpe_ratio', float('-inf'))
+        if oos_sharpe is not None and oos_sharpe > best_oos_sharpe:
+            best_oos_sharpe = oos_sharpe
+            best_pair = symbol
+    if best_pair:
+        logger.info(f"\n=== BEST TRADING PAIR (by OOS Sharpe) ===")
+        logger.info(f"Pair: {best_pair}")
+        logger.info(f"OOS Sharpe: {best_oos_sharpe}")
+        logger.info(f"Best Config: {all_results[best_pair]['best_params']}")
+    else:
+        logger.info("No valid trading pair found for summary.")
 
 if __name__ == "__main__":
     main() 
