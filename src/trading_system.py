@@ -650,7 +650,7 @@ def run_comprehensive_analysis(api_cfg_dict: Dict, main_strat_cfg: StrategyConfi
 
             # -------- SYMBOL IDENTIFIER KEY - THIS IS THE PART TO ADJUST --------
             # Based on your CRITICAL DEBUG output, change 'symbolId' to the correct key from Bitget API
-            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbolId' # <--- CHANGE THIS if CRITICAL DEBUG shows a different key
+            SYMBOL_IDENTIFIER_KEY_FROM_API = 'symbol' # <--- CHANGE THIS if CRITICAL DEBUG shows a different key
             # --------------------------------------------------------------------
             logger.info(f"DEBUG: Using '{SYMBOL_IDENTIFIER_KEY_FROM_API}' as the key for symbol identification.")
 
