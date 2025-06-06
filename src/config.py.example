@@ -1,0 +1,378 @@
+"""
+NNFX Bot Configuration File
+==========================
+
+This file contains all configuration settings for the NNFX trading bot.
+Copy this file to config.py and modify the settings according to your needs.
+
+IMPORTANT: Never commit config.py with real API credentials to version control!
+"""
+
+# =============================================================================
+# BITGET API CONFIGURATION
+# =============================================================================
+
+BITGET_CONFIG = {
+    # Your Bitget API credentials
+    # Get these from: https://www.bitget.com/en/account/api-management
+    'api_key': '',          # Your API Key (required)
+    'secret_key': '',       # Your Secret Key (required)
+    'passphrase': '',       # Your API Passphrase (required)
+    'sandbox': True         # Set to False for live trading (CAUTION!)
+}
+
+# =============================================================================
+# TRADING CONFIGURATION
+# =============================================================================
+
+# Risk Management
+RISK_PER_TRADE = 0.015      # 1.5% risk per trade (adjust based on your risk tolerance)
+TIMEFRAME = "4H"            # Trading timeframe (4H recommended for NNFX)
+LOOKBACK_DAYS = 180         # Days of historical data for backtesting (6 months)
+
+# Position Sizing
+MIN_POSITION_SIZE = 10      # Minimum position size in USD
+MAX_POSITION_SIZE = 1000    # Maximum position size in USD (safety limit)
+
+# Stop Loss and Take Profit
+ATR_STOP_MULTIPLIER = 2.0   # Stop loss distance in ATR multiples
+ATR_TP_MULTIPLIER = 3.0     # Take profit distance in ATR multiples (1:1.5 R:R)
+
+# =============================================================================
+# SYSTEM A PARAMETERS (MOMENTUM-BASED)
+# =============================================================================
+
+SYSTEM_A_PARAMS = {
+    # TEMA (Triple Exponential Moving Average) - Baseline
+    'tema_period': 21,
+    
+    # CCI (Commodity Channel Index) - Confirmation
+    'cci_period': 14,
+    'cci_overbought': 100,      # CCI overbought level
+    'cci_oversold': -100,       # CCI oversold level
+    
+    # Elder's Force Index - Volume
+    'elder_fi_period': 13,
+    
+    # Chandelier Exit - Exit Signal
+    'chandelier_period': 22,
+    'chandelier_multiplier': 3.0
+}
+
+# =============================================================================
+# SYSTEM B PARAMETERS (TREND-FOLLOWING)
+# =============================================================================
+
+SYSTEM_B_PARAMS = {
+    # Kijun-Sen (Ichimoku Base Line) - Baseline
+    'kijun_period': 26,
+    
+    # Williams %R - Confirmation
+    'williams_period': 14,
+    'williams_overbought': -20,     # Williams %R overbought level
+    'williams_oversold': -80,       # Williams %R oversold level
+    
+    # Klinger Oscillator - Volume
+    'klinger_fast': 34,
+    'klinger_slow': 55,
+    'klinger_signal': 13,
+    
+    # Parabolic SAR - Exit Signal
+    'psar_start': 0.02,
+    'psar_increment': 0.02,
+    'psar_maximum': 0.2
+}
+
+# =============================================================================
+# CRYPTOCURRENCY PAIRS CONFIGURATION
+# =============================================================================
+
+# Major cryptocurrency pairs to analyze (USDT pairs recommended)
+TEST_PAIRS = [
+    # Major Coins
+    'BTCUSDT',      # Bitcoin
+    'ETHUSDT',      # Ethereum
+    
+    # Large Cap Altcoins
+    'ADAUSDT',      # Cardano
+    'DOTUSDT',      # Polkadot
+    'LINKUSDT',     # Chainlink
+    'UNIUSDT',      # Uniswap
+    'AAVEUSDT',     # Aave
+    'SOLUSDT',      # Solana
+    'MATICUSDT',    # Polygon
+    'AVAXUSDT',     # Avalanche
+    
+    # Mid Cap Coins
+    'ATOMUSDT',     # Cosmos
+    'NEARUSDT',     # Near Protocol
+    'FTMUSDT',      # Fantom
+    'SANDUSDT',     # Sandbox
+    'MANAUSDT',     # Decentraland
+    
+    # Additional Options (uncomment as needed)
+    # 'LTCUSDT',    # Litecoin
+    # 'XRPUSDT',    # XRP
+    # 'BCHUSDT',    # Bitcoin Cash
+    # 'EOSUSDT',    # EOS
+    # 'TRXUSDT',    # Tron
+    # 'VETUSDT',    # VeChain
+    # 'XLMUSDT',    # Stellar
+    # 'IOTAUSDT',   # IOTA
+    # 'NEOUSDT',    # Neo
+    # 'DASHUSDT',   # Dash
+]
+
+# =============================================================================
+# SYSTEM PERFORMANCE CONFIGURATION
+# =============================================================================
+
+# Resource Management (adjust based on your VPS specifications)
+MAX_PAIRS_TO_TEST = 15          # Maximum pairs to backtest simultaneously
+API_RATE_LIMIT_DELAY = 0.2      # Delay between API calls (seconds)
+DATA_CACHE_HOURS = 4            # Hours to cache market data
+
+# Backtesting Requirements
+MIN_TRADES_REQUIRED = 3         # Minimum trades for valid backtest
+MIN_DATA_POINTS = 100           # Minimum candles required for analysis
+
+# Performance Scoring Weights
+SCORING_WEIGHTS = {
+    'win_rate': 0.25,           # Win rate importance
+    'profit_factor': 0.25,      # Profit factor importance
+    'total_return': 0.25,       # Total return importance
+    'trade_frequency': 0.15,    # Trade frequency importance
+    'drawdown_penalty': 0.05,   # Drawdown penalty weight
+    'consecutive_loss_penalty': 0.05  # Consecutive loss penalty weight
+}
+
+# =============================================================================
+# OUTPUT AND LOGGING CONFIGURATION
+# =============================================================================
+
+# Results Configuration
+SAVE_DETAILED_RESULTS = True    # Save comprehensive backtest results
+GENERATE_CHARTS = False         # Generate performance charts (requires matplotlib)
+EXPORT_TO_EXCEL = True          # Export results to Excel files
+
+# Logging Configuration
+LOG_LEVEL = 'INFO'              # Logging level: DEBUG, INFO, WARNING, ERROR
+LOG_TO_FILE = True              # Save logs to files
+LOG_ROTATION_DAYS = 7           # Days to keep log files
+
+# File Cleanup
+AUTO_CLEANUP_ENABLED = True     # Automatically clean old files
+CLEANUP_DAYS = 7                # Days to keep cache and result files
+MAX_RESULT_FILES = 20           # Maximum result files to keep
+MAX_LOG_FILES = 10              # Maximum log files to keep
+
+# =============================================================================
+# SIGNAL DETECTION CONFIGURATION
+# =============================================================================
+
+# Signal Confidence Scoring
+MIN_SIGNAL_CONFIDENCE = 0.6     # Minimum confidence for valid signals (60%)
+TREND_CONSISTENCY_WEIGHT = 0.4  # Weight for trend consistency in confidence
+SIGNAL_SUPPORT_WEIGHT = 0.6     # Weight for signal support in confidence
+
+# Signal Filtering
+FILTER_LOW_VOLUME_PAIRS = True  # Filter out low volume pairs
+MIN_24H_VOLUME_USD = 1000000    # Minimum 24h volume in USD ($1M)
+
+# Multiple Timeframe Confirmation (future feature)
+ENABLE_MTF_CONFIRMATION = False # Enable multi-timeframe confirmation
+MTF_TIMEFRAMES = ['1H', '4H', 'D']  # Timeframes for MTF analysis
+
+# =============================================================================
+# NOTIFICATION CONFIGURATION (FUTURE FEATURES)
+# =============================================================================
+
+# Email Notifications
+EMAIL_NOTIFICATIONS = {
+    'enabled': False,           # Enable email notifications
+    'smtp_server': '',          # SMTP server address
+    'smtp_port': 587,           # SMTP port
+    'email_user': '',           # Your email address
+    'email_password': '',       # Your email app password
+    'recipients': []            # List of recipient email addresses
+}
+
+# Telegram Notifications
+TELEGRAM_NOTIFICATIONS = {
+    'enabled': False,           # Enable Telegram notifications
+    'bot_token': '',            # Telegram bot token
+    'chat_id': ''               # Your Telegram chat ID
+}
+
+# Discord Notifications
+DISCORD_NOTIFICATIONS = {
+    'enabled': False,           # Enable Discord notifications
+    'webhook_url': ''           # Discord webhook URL
+}
+
+# =============================================================================
+# ADVANCED CONFIGURATION
+# =============================================================================
+
+# API Configuration
+API_TIMEOUT = 10                # API request timeout in seconds
+MAX_RETRIES = 3                 # Maximum API retry attempts
+RETRY_DELAY = 2                 # Delay between retries in seconds
+
+# Data Validation
+VALIDATE_DATA_INTEGRITY = True  # Validate downloaded data
+REMOVE_OUTLIERS = True          # Remove price outliers from data
+OUTLIER_THRESHOLD = 3           # Standard deviations for outlier detection
+
+# Performance Optimization
+ENABLE_PARALLEL_PROCESSING = False  # Enable parallel pair processing (experimental)
+MAX_WORKER_THREADS = 4              # Maximum worker threads for parallel processing
+
+# Security Settings
+MASK_API_KEYS_IN_LOGS = True    # Mask API keys in log output
+REQUIRE_API_IP_WHITELIST = True # Recommend IP whitelisting for API keys
+
+# =============================================================================
+# TRADING HOURS CONFIGURATION (FUTURE FEATURE)
+# =============================================================================
+
+# Trading Session Control
+ENABLE_TRADING_HOURS = False    # Enable trading hours restriction
+TRADING_HOURS = {
+    'start': '00:00',           # Trading start time (UTC)
+    'end': '23:59',             # Trading end time (UTC)
+    'timezone': 'UTC'           # Trading timezone
+}
+
+# Weekend Trading
+TRADE_WEEKENDS = True           # Allow trading on weekends (crypto markets)
+
+# News Avoidance
+AVOID_NEWS_EVENTS = False       # Avoid trading during major news events
+NEWS_AVOIDANCE_MINUTES = 30     # Minutes to avoid trading before/after news
+
+# =============================================================================
+# BACKTESTING CONFIGURATION
+# =============================================================================
+
+# Historical Data
+DEFAULT_LOOKBACK_PERIODS = 1000 # Default number of candles to fetch
+WARM_UP_PERIODS = 50            # Periods needed for indicator calculation
+
+# Backtesting Accuracy
+INCLUDE_SLIPPAGE = False        # Include slippage in backtest (future feature)
+SLIPPAGE_BPS = 2                # Slippage in basis points
+INCLUDE_COMMISSION = False      # Include trading fees (future feature)
+COMMISSION_RATE = 0.001         # Commission rate (0.1%)
+
+# Walk-Forward Analysis
+ENABLE_WALK_FORWARD = False     # Enable walk-forward optimization
+WF_OPTIMIZATION_PERIODS = 90    # Days for each optimization period
+WF_OUT_OF_SAMPLE_PERIODS = 30   # Days for out-of-sample testing
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC SETTINGS
+# =============================================================================
+
+# Development Settings
+DEBUG_MODE = False              # Enable debug mode
+VERBOSE_LOGGING = False         # Enable verbose logging
+SAVE_DEBUG_DATA = False         # Save debug data to files
+
+# Production Settings
+PRODUCTION_MODE = False         # Enable production mode
+HEALTH_CHECK_INTERVAL = 300     # Health check interval in seconds (5 minutes)
+AUTO_RESTART_ON_ERROR = False   # Auto-restart on critical errors
+
+# Testing Settings
+PAPER_TRADING_MODE = True       # Enable paper trading mode
+SIMULATE_ORDERS = True          # Simulate order execution
+MOCK_API_RESPONSES = False      # Use mock API responses for testing
+
+# =============================================================================
+# VALIDATION AND CONSTANTS
+# =============================================================================
+
+# Validate configuration on import
+def validate_config():
+    """Validate configuration settings"""
+    errors = []
+    
+    # Check required API settings
+    if not BITGET_CONFIG['api_key'] and not MOCK_API_RESPONSES:
+        errors.append("API key is required")
+    
+    # Check risk settings
+    if RISK_PER_TRADE <= 0 or RISK_PER_TRADE > 0.1:
+        errors.append("Risk per trade should be between 0 and 10%")
+    
+    # Check timeframe
+    if TIMEFRAME not in ['1H', '4H', '6H', '12H', '1D']:
+        errors.append("Invalid timeframe specified")
+    
+    # Check pairs list
+    if not TEST_PAIRS:
+        errors.append("No trading pairs specified")
+    
+    if errors:
+        print("Configuration Errors:")
+        for error in errors:
+            print(f"  - {error}")
+        print("\nPlease fix these errors before running the bot.")
+        return False
+    
+    return True
+
+# Constants (do not modify)
+SUPPORTED_TIMEFRAMES = ['1H', '4H', '6H', '12H', '1D']
+SUPPORTED_EXCHANGES = ['bitget']
+VERSION = '1.0.0'
+AUTHOR = 'NNFX Bot Development Team'
+
+# Validate configuration when imported
+if __name__ != '__main__':
+    validate_config()
+
+# =============================================================================
+# EXAMPLE USAGE AND COMMENTS
+# =============================================================================
+
+"""
+Configuration Examples:
+
+1. Conservative Setup (Low Risk):
+   RISK_PER_TRADE = 0.01          # 1% risk
+   MIN_SIGNAL_CONFIDENCE = 0.8    # High confidence required
+   MAX_PAIRS_TO_TEST = 5          # Focus on fewer pairs
+
+2. Aggressive Setup (Higher Risk):
+   RISK_PER_TRADE = 0.025         # 2.5% risk
+   MIN_SIGNAL_CONFIDENCE = 0.5    # Lower confidence threshold
+   MAX_PAIRS_TO_TEST = 20         # Test more pairs
+
+3. Development/Testing Setup:
+   DEBUG_MODE = True
+   PAPER_TRADING_MODE = True
+   MOCK_API_RESPONSES = True
+   SAVE_DEBUG_DATA = True
+
+4. Production Setup:
+   PRODUCTION_MODE = True
+   BITGET_CONFIG['sandbox'] = False
+   EMAIL_NOTIFICATIONS['enabled'] = True
+   AUTO_CLEANUP_ENABLED = True
+
+Security Recommendations:
+- Use environment variables for sensitive data
+- Enable IP whitelisting on your API keys
+- Use strong, unique passwords for your accounts
+- Regularly rotate API keys
+- Monitor your account for unusual activity
+
+Performance Tips:
+- Start with fewer pairs and increase gradually
+- Monitor VPS resources regularly
+- Use data caching to reduce API calls
+- Clean up old files regularly
+- Optimize based on your VPS specifications
+"""
