@@ -1,0 +1,60 @@
+{
+    "major_bases_for_filtering": [
+        "BTC", "ETH", "ADA", "DOT", "LINK", "UNI", "AAVE", "SOL", 
+        "MATIC", "AVAX", "ATOM", "NEAR", "FTM", "SAND", "MANA", 
+        "LTC", "XRP", "BCH", "EOS", "TRX", "VET", "XLM", "IOTA", 
+        "NEO", "DASH", "ZEC", "ETC", "XMR", "ALGO", "THETA"
+    ],
+    "filter_by_major_bases_for_top_volume": true,
+    "top_n_pairs_by_volume_to_scan": 8,
+    "backtest_kline_limit": 1000,
+    "backtest_min_data_after_get_klines": 100,
+    "backtest_min_data_after_indicators": 50,
+    "backtest_min_trades_for_ranking": 5,
+    "risk_per_trade": 0.015,
+    "stop_loss_atr_multiplier": 2.0,
+    "take_profit_atr_multiplier": 3.0,
+    "indicators": {
+        "tema_period": 21,
+        "cci_period": 14,
+        "elder_fi_period": 13,
+        "chandelier_period": 22,
+        "chandelier_multiplier": 3.0,
+        "kijun_sen_period": 26,
+        "williams_r_period": 14,
+        "klinger_fast_ema": 34,
+        "klinger_slow_ema": 55,
+        "klinger_signal_ema": 13,
+        "psar_step": 0.02,
+        "psar_max_step": 0.2,
+        "atr_period_risk": 14,
+        "atr_period_chandelier": 22 
+    },
+    "scoring": {
+        "win_rate_weight": 0.25,
+        "profit_factor_weight": 0.25,
+        "return_pct_weight": 0.20,
+        "trade_frequency_weight": 0.10,
+        "sharpe_ratio_weight": 0.20,
+        "drawdown_penalty_multiplier": 1.5,
+        "drawdown_penalty_weight": 0.05,
+        "consecutive_loss_penalty_multiplier": 3.0,
+        "consecutive_loss_penalty_weight": 0.03,
+        "var_95_penalty_multiplier": 5.0,
+        "var_95_penalty_weight": 0.02,
+        "profit_factor_inf_score": 50,
+        "sharpe_ratio_inf_score": 50
+    },
+    "signal_confidence": {
+        "min_recent_data_for_confidence": 3,
+        "default_confidence": 0.5,
+        "signal_support_weight": 0.40,
+        "trend_consistency_weight": 0.25,
+        "momentum_consistency_weight": 0.20,
+        "volume_consistency_weight": 0.15
+    },
+    "cleanup": {
+        "cache_days_old": 7,
+        "max_results_to_keep": 20
+    }
+}
