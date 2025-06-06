@@ -143,13 +143,19 @@ class BitgetAPI:
                     
                     if data.get('code') == '00000' and data.get('data'):
                         # Process data
-                        df = pd.DataFrame(
-                            data['data'], 
-                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
-                        )
+                        raw = data['data']
+                        df = pd.DataFrame(raw)
+                        # Map Bitget fields to expected columns
+                        df = df.rename(columns={
+                            'ts': 'timestamp',
+                            'open': 'open',
+                            'high': 'high',
+                            'low': 'low',
+                            'close': 'close',
+                            'baseVol': 'volume'  # Use base asset volume
+                        })
                         df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
                         df = df.set_index('timestamp')
-                        # Convert all columns to numeric (float), coerce errors to NaN
                         for col in ['open', 'high', 'low', 'close', 'volume']:
                             df[col] = pd.to_numeric(df[col], errors='coerce')
                         df = df.sort_index()
