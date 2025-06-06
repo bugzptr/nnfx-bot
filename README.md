@@ -1,308 +1,48 @@
-# NNFX Bot - Dual System Trading Strategy
-
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Bitget](https://img.shields.io/badge/Exchange-Bitget-orange.svg)](https://www.bitget.com/)
-[![Status](https://img.shields.io/badge/Status-Beta-yellow.svg)](https://github.com/bugzptr/nnfx-bot)
-
-A sophisticated cryptocurrency trading bot implementing the **No Nonsense Forex (NNFX)** methodology with a dual-system approach for enhanced signal confirmation and improved win rates.
-
-## 🎯 Strategy Overview
-
-This bot implements two independent NNFX systems that must both agree before generating trading signals:
-
-### System A (Momentum-Based)
-- **Baseline:** TEMA (Triple Exponential Moving Average)
-- **Confirmation:** CCI (Commodity Channel Index)
-- **Volume:** Elder's Force Index
-- **Exit:** Chandelier Exit
-
-### System B (Trend-Following)
-- **Baseline:** Kijun-Sen (Ichimoku)
-- **Confirmation:** Williams %R
-- **Volume:** Klinger Oscillator
-- **Exit:** Parabolic SAR
-
-## 🚀 Key Features
-
-- **Dual System Confirmation:** Higher probability setups with reduced false signals
-- **Comprehensive Backtesting:** Advanced metrics including Sharpe ratio, max drawdown, consecutive losses
-- **Real-time Signal Detection:** Live market scanning with confidence scoring
-- **Risk Management:** ATR-based position sizing and stop-loss placement
-- **VPS Optimized:** Resource-efficient design for cloud deployment
-- **Data Caching:** Intelligent API rate limiting and data persistence
-- **Performance Ranking:** Automated pair scoring and ranking system
-
-## 📊 Performance Metrics
-
-The system tracks comprehensive performance metrics:
-- Win Rate & Profit Factor
-- Total Return (R-multiple and percentage)
-- Maximum Drawdown
-- Sharpe Ratio
-- Maximum Consecutive Losses
-- Trade Frequency Analysis
-
-## 🛠 Installation
-
-### Prerequisites
-- Python 3.8 or higher
-- Ubuntu 18.04+ (recommended for VPS deployment)
-- Bitget account with API access
-
-### Quick Setup
-
-1. **Clone the repository:**
-```bash
-git clone https://github.com/bugzptr/nnfx-bot.git
-cd nnfx-bot
-```
-
-2. **Create virtual environment:**
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-4. **Configure API credentials:**
-```bash
-cp config/api_config.json.example config/api_config.json
-# Edit config/api_config.json and add your Bitget API credentials
-```
-
-   Example `config/api_config.json`:
-   ```json
-   {
-     "api_key": "your_api_key_here",
-     "secret_key": "your_secret_key_here",
-     "passphrase": "your_passphrase_here",
-     "sandbox": true
-   }
-   ```
-
-5. **First run:**
-- The app will automatically create the `logs`, `data`, and `results` directories if they do not exist.
-
-6. **Run the bot:**
-```bash
-python run_analysis.py --mode=test      # Quick test
-python run_analysis.py --mode=scan      # Full scan and backtest
-python run_analysis.py --mode=signals   # Get current trading signals
-python run_analysis.py --mode=all       # Complete analysis (test + scan + signals)
-```
-
-## ⚙️ Configuration
-
-- All API credentials are now stored in `config/api_config.json` (not in Python files).
-- Do **not** commit your real API credentials to version control.
-- The app will auto-create required folders (`logs`, `data`, `results`).
-- For advanced settings, see `SETUP.md`.
-
-## 🔧 Usage
-
-### Command Line Interface
-
-```bash
-# Quick BTC/USDT test
-python run_analysis.py --mode=test
-
-# Full pair scanning and backtesting
-python run_analysis.py --mode=scan
-
-# Get current trading signals
-python run_analysis.py --mode=signals
-
-# Complete analysis (test + scan + signals)
-python run_analysis.py --mode=all
-```
-
-### System Monitoring
-
-```bash
-# Check system status and resources
-python monitor.py
-
-# Clean old cache and result files
-python cleanup.py
-```
-
-### Python API Usage
-
-```python
-from src.trading_system import DualNNFXSystem, BitgetAPI
-
-# Initialize system
-api = BitgetAPI(api_key="...", secret_key="...", passphrase="...")
-system = DualNNFXSystem(api)
-
-# Backtest a single pair
-result = system.backtest_pair('BTCUSDT')
-print(f"Win Rate: {result['win_rate']:.1%}")
-print(f"Profit Factor: {result['profit_factor']:.2f}")
-
-# Scan multiple pairs
-rankings = system.scan_pairs(['BTCUSDT', 'ETHUSDT', 'ADAUSDT'])
-print(rankings.head())
-
-# Get current signals
-signals = system.get_current_signals(['BTCUSDT', 'ETHUSDT'])
-active_signals = signals[signals['signal'] != 'NONE']
-print(active_signals)
-```
-
-## 📁 Project Structure
-
-```
-nnfx-bot/
-├── src/
-│   ├── trading_system.py      # Main trading system implementation
-│   ├── config.py              # Configuration settings
-│   └── indicators.py          # Technical indicator calculations
-├── data/                      # Cached market data
-├── results/                   # Backtest results and reports
-├── logs/                      # System logs
-├── requirements.txt           # Python dependencies
-├── run_analysis.py           # Main execution script
-├── monitor.py                # System monitoring
-├── cleanup.py                # File maintenance
-├── SETUP.md                  # Detailed setup instructions
-└── README.md                 # This file
-```
-
-## 🔄 Automation
-
-### Cron Job (Daily Analysis)
-```bash
-# Add to crontab (crontab -e)
-0 9 * * * cd /path/to/nnfx-bot && ./venv/bin/python run_analysis.py --mode=all
-```
-
-### Systemd Service
-```bash
-# Copy service file and enable
-sudo cp scripts/nnfx-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable nnfx-bot.service
-```
-
-## 📈 Sample Output
-
-```
-=== TOP 5 PERFORMING PAIRS ===
-1. ADAUSDT
-   Score: 78.45
-   Win Rate: 68.2%
-   Profit Factor: 2.34
-   Total Return: 23.7%
-   Max Drawdown: 8.1%
-   Trades: 22
-
-=== ACTIVE TRADING SIGNALS ===
-BTCUSDT: LONG
-  Price: 43250.50
-  Confidence: 87%
-  Stop Loss Distance: 650.25
-  Take Profit Distance: 975.38
-  System Strength: 91%
-```
-
-## 🚨 Risk Management
-
-- **Position Sizing:** ATR-based with configurable risk per trade
-- **Stop Loss:** 2x ATR from entry point
-- **Take Profit:** 3x ATR (1:1.5 risk/reward ratio)
-- **Maximum Risk:** 1.5% of account per trade
-- **Dual Confirmation:** Both systems must agree before entry
-
-## ⚠️ Important Notes
-
-1. **Paper Trading First:** Always test thoroughly before live trading
-2. **API Rate Limits:** System includes intelligent rate limiting
-3. **Data Requirements:** Minimum 100 candles needed for backtesting
-4. **Resource Usage:** Monitor VPS resources with `monitor.py`
-5. **Security:** Never commit API credentials to version control
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Import Errors:**
-```bash
-# Ensure virtual environment is activated
-source venv/bin/activate
-```
-
-**API Connection Issues:**
-```bash
-# Check API credentials and internet connection
-python -c "from src.trading_system import BitgetAPI; api = BitgetAPI(); print(api.get_symbols()[:5])"
-```
-
-**Memory Issues:**
-```bash
-# Reduce MAX_PAIRS_TO_TEST in config.py
-# Monitor with: python monitor.py
-```
-
-**Insufficient Data:**
-```bash
-# Some pairs may not have enough historical data
-# Check logs for specific error messages
-```
-
-## 📊 Backtesting Results
-
-The system provides detailed backtesting reports including:
-- Individual trade analysis
-- Equity curve visualization
-- Performance metrics comparison
-- Signal confidence scoring
-- System alignment analysis
-
-## 🔮 Future Enhancements
-
-- [ ] Automated order execution
-- [ ] Multi-timeframe analysis
-- [ ] Machine learning signal filtering
-- [ ] Portfolio management
-- [ ] Real-time notifications
-- [ ] Web-based dashboard
-- [ ] Additional exchanges support
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## ⚡ Quick Start for VPS
-
-```bash
-# One-liner VPS setup
-curl -sSL https://raw.githubusercontent.com/bugzptr/nnfx-bot/main/scripts/vps_setup.sh | bash
-```
-
-## 📞 Support
-
-- **Issues:** [GitHub Issues](https://github.com/bugzptr/nnfx-bot/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/bugzptr/nnfx-bot/discussions)
-- **Documentation:** [Wiki](https://github.com/bugzptr/nnfx-bot/wiki)
-
-## ⭐ Star History
-
-If this project helps you, please consider giving it a star! ⭐
-
----
-
-**Disclaimer:** This software is for educational purposes only. Cryptocurrency trading involves substantial risk of loss. Never trade with money you cannot afford to lose. Past performance does not guarantee future results.
+NNFX Bot - Dual System Algorithmic Trading Strategy
+This project implements a sophisticated algorithmic trading bot for cryptocurrency spot markets, utilizing the Bitget exchange API. It is built upon the core principles of the No Nonsense Forex (NNFX) methodology, employing a dual-system confirmation approach to enhance signal accuracy and filter out market noise.
+Core Strategy & Intention:
+The primary intention of this bot is to systematically identify and execute high-probability trading opportunities by combining two distinct NNFX-inspired trading systems. A trade signal is only generated when both systems are in agreement, aiming for improved win rates and more robust performance across different market conditions.
+System A (Momentum-Based):
+Baseline: Triple Exponential Moving Average (TEMA) to gauge short-term trend/momentum.
+Confirmation: Commodity Channel Index (CCI) to confirm momentum strength.
+Volume: Elder's Force Index to assess the power behind price moves.
+System B (Trend-Following):
+Baseline: Kijun-Sen (from Ichimoku Cloud) to identify the medium-term trend.
+Confirmation: Williams %R to identify overbought/oversold conditions relative to the trend.
+Volume: Chaikin Money Flow (CMF) to measure buying and selling pressure (Note: This was adapted from an initial intent to use Klinger/PVO due to library compatibility, with CMF > 0 indicating bullish volume and CMF < 0 indicating bearish volume).
+Trade exits are managed by a combination of Chandelier Exit and Parabolic SAR, providing dynamic stop-loss mechanisms.
+Key Features & Design Goals:
+Dual-System Confirmation: The cornerstone of the strategy, requiring consensus from both System A and System B for trade entries, designed to reduce false signals.
+Comprehensive Backtesting Engine:
+Allows for iterative testing of the strategy against historical k-line data.
+Calculates a wide array of performance metrics, including: Win Rate, Profit Factor, Total Return (R-multiple and percentage), Maximum Drawdown, Sharpe Ratio, Sortino Ratio, Maximum Consecutive Losses, and VaR (Value at Risk via PnL R-multiples).
+Automated Symbol Scanning & Ranking:
+Dynamically fetches and filters a list of tradable symbols (e.g., top N by USDT volume, optionally filtered by major base currencies).
+Backtests each selected symbol in parallel (leveraging concurrent.futures.ProcessPoolExecutor) for efficiency.
+Ranks symbols based on a configurable, multi-factor scoring system derived from their backtest performance.
+Real-time Signal Identification:
+Capable of fetching the latest market data to identify current trading signals based on the dual-system logic.
+Includes a basic confidence scoring mechanism for live signals.
+Risk Management Framework:
+Implements ATR (Average True Range)-based stop-loss placement.
+Calculates position size based on a fixed percentage risk of account equity per trade during backtesting.
+Data Handling & Persistence:
+Integrates with the Bitget API for fetching market data (symbols, k-lines).
+Features intelligent caching for k-line data and symbol lists to minimize API calls and speed up subsequent runs.
+Includes basic API rate limiting.
+Configurability:
+Strategy parameters (indicator periods, risk settings, scoring weights, etc.) are managed through an external JSON configuration file (config/strategy_config.json), allowing for easy tuning without code changes.
+API keys are also managed via a separate configuration file (config/api_config.json).
+Reporting & Analysis:
+Generates detailed CSV and text summaries of backtest scan results.
+Exports comprehensive analysis (rankings, current signals, summary statistics) to an Excel file.
+Modular Design:
+Separates concerns into classes for API interaction (BitgetAPI), indicator calculations (NNFXIndicators), and the core trading system logic (DualNNFXSystem).
+VPS & Automation Ready: Designed with considerations for running on a Virtual Private Server (VPS), including logging, file-based data persistence, and attempts at resource-efficient processing (e.g., parallel backtesting).
+Intended Use:
+This bot is intended for traders and developers interested in:
+Rigorously backtesting NNFX-style trading strategies in the cryptocurrency markets.
+Identifying potentially profitable trading pairs and parameter sets through automated scanning and ranking.
+Serving as a foundation for developing a semi-automated or fully-automated live trading bot, once the strategy is thoroughly validated and refined.
+Learning about the implementation details of algorithmic trading systems, including API integration, indicator calculation, backtesting mechanics, and basic risk management.
+The project emphasizes a data-driven approach to strategy development and aims to provide a robust framework for iterative improvement and testing.

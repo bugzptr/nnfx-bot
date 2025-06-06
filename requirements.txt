@@ -46,3 +46,6 @@ numba>=0.56.0
 # Additional Utilities
 tqdm>=4.64.0
 click>=8.0.0
+
+# Parameter Optimization
+optuna

@@ -74,9 +74,13 @@ default_config_for_fallback = {
 
 # --- Configuration Loader ---
 class StrategyConfig: 
-    def __init__(self, config_path_str="config/strategy_config.json"):
-        self.config_path = Path(config_path_str)
-        self.params = self._load_config()
+    def __init__(self, config_path_str="config/strategy_config.json", params_dict=None):
+        if params_dict is not None:
+            self.params = params_dict
+            self.config_path = None
+        else:
+            self.config_path = Path(config_path_str)
+            self.params = self._load_config()
         # Avoid logging here if instance is created in worker, as logger might not be configured for worker yet
         # logger.info(f"Strategy configuration loaded from: {self.config_path if self.config_path.exists() else 'Fallback Defaults'}")
 
@@ -313,11 +317,14 @@ class NNFXIndicators:
         try: return ta.volatility.AverageTrueRange(high,low,close,atr_p,fillna=False).average_true_range()
         except Exception as e: logger.error(f"ATR err(p={atr_p}): {e}"); return pd.Series(np.nan,index=high.index)
 
-def _backtest_worker_process(api_config_dict: Dict, strategy_config_path_str: str, symbol: str) -> Dict:
+def _backtest_worker_process(api_config_dict: Dict, strategy_config_path_or_dict, symbol: str) -> Dict:
     try:
         worker_api = BitgetAPI(**api_config_dict)
-        # Crucial: Each worker must have its own StrategyConfig instance loaded from path
-        worker_strategy_config = StrategyConfig(strategy_config_path_str) 
+        # Accept either a dict or a path for strategy config
+        if isinstance(strategy_config_path_or_dict, dict):
+            worker_strategy_config = StrategyConfig(params_dict=strategy_config_path_or_dict)
+        else:
+            worker_strategy_config = StrategyConfig(strategy_config_path_or_dict)
         worker_system = DualNNFXSystem(worker_api, worker_strategy_config)
         result = worker_system.backtest_pair(symbol)
         return result
@@ -405,11 +412,8 @@ class DualNNFXSystem:
         df['short_exit'] = ((df['close'] > df['chandelier_short']) | (df['close'] > df['psar'])).astype(bool)
         return df
 
-    def backtest_pair(self, symbol: str) -> Dict: 
+    def backtest_pair(self, symbol: str, start_date: str = None, end_date: str = None) -> Dict: 
         # Get the logger instance for the current module/process
-        # This is important if this method is called from a worker process
-        # For worker processes, a separate logger config might be needed, or pass logger instance.
-        # For now, assume logger is the global one from main module.
         current_process_logger = logging.getLogger(__name__)
         current_process_logger.info(f"[{symbol}] Backtesting symbol...") 
 
@@ -419,6 +423,16 @@ class DualNNFXSystem:
         if df_klines.empty: return {"symbol": symbol, "error": "No kline data"}
         if len(df_klines) < cfg.get("backtest_min_data_after_get_klines", 100):
             return {"symbol": symbol, "error": f"Insufficient klines: {len(df_klines)}"}
+
+        # --- Slice by date if requested ---
+        if start_date is not None:
+            df_klines = df_klines[df_klines.index >= pd.to_datetime(start_date)]
+        if end_date is not None:
+            df_klines = df_klines[df_klines.index <= pd.to_datetime(end_date)]
+        if df_klines.empty:
+            return {"symbol": symbol, "error": "No kline data after date filtering"}
+        if len(df_klines) < cfg.get("backtest_min_data_after_get_klines", 100):
+            return {"symbol": symbol, "error": f"Insufficient klines after date filtering: {len(df_klines)}"}
 
         df_indicators = self.calculate_indicators(df_klines, symbol)
         
